@@ -9,7 +9,7 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
-
+from ivr_vision import ivr_vision
 
 class image_converter:
 
@@ -38,6 +38,8 @@ class image_converter:
     except CvBridgeError as e:
       print(e)
     
+    self._detect_joint_angles(self.cv_image1)
+
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy.png', cv_image)
 
@@ -53,6 +55,19 @@ class image_converter:
     self._update_joint2(time)
     self._update_joint3(time)
     self._update_joint4(time)
+
+  def _detect_joint_angles(self, image):
+    yellow = ivr_vision.detect_blob(image, ivr_vision.YELLOW_RANGE)
+    blue = ivr_vision.detect_blob(image, ivr_vision.BLUE_RANGE)
+    green = ivr_vision.detect_blob(image, ivr_vision.GREEN_RANGE)
+    red = ivr_vision.detect_blob(image, ivr_vision.RED_RANGE)
+    if ivr_vision.DEBUG:
+        r = 5
+        # draw dots in the centers to check that this works
+        cv2.circle(image, tuple(yellow), r, ivr_vision.invert(ivr_vision.YELLOW_RANGE[1]), -1)
+        cv2.circle(image, tuple(blue), r, ivr_vision.invert(ivr_vision.BLUE_RANGE[1]), -1)
+        cv2.circle(image, tuple(green), r, ivr_vision.invert(ivr_vision.GREEN_RANGE[1]), -1)
+        cv2.circle(image, tuple(red), r, ivr_vision.invert(ivr_vision.RED_RANGE[1]), -1)
 
   def _update_joint2(self, t):
       new_state = np.pi / 2.0 * np.sin(np.pi / 15.0 * t)
