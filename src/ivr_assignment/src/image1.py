@@ -21,6 +21,11 @@ class image_converter:
     self.image_pub1 = rospy.Publisher("image_topic1",Image, queue_size = 1)
     # initialize a subscriber to recieve messages rom a topic named /robot/camera1/image_raw and use callback function to recieve data
     self.image_sub1 = rospy.Subscriber("/camera1/robot/image_raw",Image,self.callback1)
+
+    self.joint1_controller = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=3)
+    self.joint2_controller = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=3)
+    self.joint3_controller = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=3)
+    self.joint4_controller = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=3) 
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
 
@@ -43,6 +48,23 @@ class image_converter:
       self.image_pub1.publish(self.bridge.cv2_to_imgmsg(self.cv_image1, "bgr8"))
     except CvBridgeError as e:
       print(e)
+
+    time = rospy.get_time()
+    self._update_joint2(time)
+    self._update_joint3(time)
+    self._update_joint4(time)
+
+  def _update_joint2(self, t):
+      new_state = np.pi / 2.0 * np.sin(np.pi / 15.0 * t)
+      self.joint2_controller.publish(new_state)
+
+  def _update_joint3(self, t):
+      new_state = np.pi / 2.0 * np.sin(np.pi / 18.0 * t)
+      self.joint3_controller.publish(new_state)
+
+  def _update_joint4(self, t):
+      new_state = np.pi / 2.0 * np.sin(np.pi / 20.0 * t)
+      self.joint4_controller.publish(new_state)
 
 # call the class
 def main(args):
