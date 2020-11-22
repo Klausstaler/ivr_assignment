@@ -17,8 +17,8 @@ class KinematicsCalculator:
         self.link1_angle, self.link2_angle, self.link3_angle, self.link4_angle = 0, 0, 0, 0
         self.link1_sub = rospy.Subscriber("/robot/joint1_position_controller/command", Float64, self.link1_cb)
         self.link2_sub = rospy.Subscriber("/robot/joint2_position_controller/command", Float64, self.link2_cb)
-        self.link3_sub = rospy.Subscriber("/robot/joint3_position_controller/command", Float64, self.link2_cb)
-        self.link4_sub = rospy.Subscriber("/robot/joint4_position_controller/command", Float64, self.link2_cb)
+        self.link3_sub = rospy.Subscriber("/robot/joint3_position_controller/command", Float64, self.link3_cb)
+        self.link4_sub = rospy.Subscriber("/robot/joint4_position_controller/command", Float64, self.link4_cb)
 
     def link1_cb(self, data):
         self.link1_angle = data.data
@@ -34,18 +34,14 @@ class KinematicsCalculator:
         self.update_effector_estimate()
 
     def update_effector_estimate(self):
-        link1_mat = self.invert_affine_mat(self.calc_trans(self.link1_angle + np.pi/2, 2.5, alpha=np.pi/2))
-        link2_mat = self.invert_affine_mat(self.calc_trans(self.link2_angle + np.pi/2, 0, 0, alpha=np.pi/2))
-        link3_mat = self.invert_affine_mat(self.calc_trans(self.link3_angle, 0, 3.5, -np.pi/2))
-        link4_mat = self.invert_affine_mat(self.calc_trans(self.link4_angle, 0, 3, np.pi/2))
-        # sooo uhmm I went from base from to end effector frame. But we want from end effector frame to base frame (lul)
+        link1_mat = self.calc_trans(self.link1_angle + np.pi/2, d=2.5, alpha=np.pi/2)
+        link2_mat = self.calc_trans(self.link2_angle + np.pi/2, alpha=np.pi/2)
+        link3_mat = self.calc_trans(self.link3_angle, a=3.5, alpha=-np.pi/2)
+        link4_mat = self.calc_trans(self.link4_angle, a=3)
         joint_to_pos = (link1_mat@link2_mat@link3_mat@link4_mat)[:-1, -1]
         self.x_pub.publish(joint_to_pos[0])
         self.y_pub.publish(joint_to_pos[1])
         self.z_pub.publish(joint_to_pos[2])
-        #self.x_pub.publish(joint_to_pos[2])
-        #self.y_pub.publish(joint_to_pos[1])
-        #self.z_pub.publish(joint_to_pos[0])
 
 
     def invert_affine_mat(self, mat):
