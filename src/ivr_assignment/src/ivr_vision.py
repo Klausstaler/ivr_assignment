@@ -26,3 +26,7 @@ class ivr_vision:
     def invert(color):
         return (255 - color[0], 255 - color[1], 255 - color[2])
 
+
+class camera:
+    def __init__(self, position):
+        self._p = position

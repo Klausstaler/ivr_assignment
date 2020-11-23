@@ -9,7 +9,7 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
-from ivr_vision import ivr_vision
+from ivr_vision import ivr_vision, camera
 
 class image_converter:
 
@@ -26,6 +26,8 @@ class image_converter:
     self.joint2_controller = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=3)
     self.joint3_controller = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=3)
     self.joint4_controller = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=3) 
+    
+    self._camera = camera(np.array([18, 0, 0]))
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
 
@@ -68,6 +70,7 @@ class image_converter:
         cv2.circle(image, tuple(blue), r, ivr_vision.invert(ivr_vision.BLUE_RANGE[1]), -1)
         cv2.circle(image, tuple(green), r, ivr_vision.invert(ivr_vision.GREEN_RANGE[1]), -1)
         cv2.circle(image, tuple(red), r, ivr_vision.invert(ivr_vision.RED_RANGE[1]), -1)
+    # find equations for line that satisfy blob locations
 
   def _update_joint2(self, t):
       new_state = np.pi / 2.0 * np.sin(np.pi / 15.0 * t)
