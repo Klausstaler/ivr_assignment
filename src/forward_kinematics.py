@@ -32,6 +32,7 @@ class KinematicsCalculator:
         self.target_y_sub = rospy.Subscriber("/target/y_position_controller/command", Float64, self.target_y_cb)
         self.target_z_sub = rospy.Subscriber("/target/z_position_controller/command", Float64, self.target_z_cb)
 
+        self.robot_joint1_pub = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=10)
         self.robot_joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=10)
         self.robot_joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
         self.robot_joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
@@ -85,15 +86,14 @@ class KinematicsCalculator:
         # P gain
         K_p = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
         # D gain
-        K_d = np.array([[0.3, 0, 0], [0, 0.3, 0], [0, 0, 0.3]])
+        K_d = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]])
         # estimate time step
         cur_time = np.array([rospy.get_time()])
         dt = cur_time - self.time_previous_step
-        if self.time_previous_step == 0:
-            self.time_previous_step = cur_time
+        """
+        if dt < 0.3:
             return
-        if dt < 1:
-            return
+        """
         self.time_previous_step = cur_time
 
         # robot end-effector position
@@ -105,27 +105,39 @@ class KinematicsCalculator:
         self.error_d = ((pos_d - pos) - self.error) / dt
         # estimate error
         self.error = pos_d - pos
-        q = np.array([self.link2.angle, self.link3.angle, self.link4.angle]) # by removing link 1 we fixed it
+        q = np.array([self.link1.angle, self.link2.angle, self.link3.angle, self.link4.angle]) # by removing link 1 we fixed it
         print("Previous q", q)
-        jacobian = np.delete(self.calc_jacobian(), 0, 1) # delete first row as this accounts for joint 1
+        q = np.delete(q, 0)
+        jacobian = np.delete(self.calc_jacobian(), 3, 1) # delete first row as this accounts for joint 1
+        #jacobian = self.calc_jacobian()
 
 
         J_inv = np.linalg.pinv(jacobian)  # calculating the pseudo inverse of Jacobian
         dq_d = J_inv.dot(K_d.dot(self.error_d) + K_p.dot(self.error))  # control input (angular velocity of joints)
         q_d = q + (dt * dq_d)  # control input (angular position of joints)
 
-        q_d[0] = max(q_d[0], 0)
-        for i in range(len(q_d)):
-            while q_d[i] > np.pi:
-                q_d[i] -= 2*np.pi
-            while q_d[i] < np.pi:
-                q_d[i] += 2*np.pi
-        print(q_d)
+
+        while q_d[0] > np.pi:
+            q_d[0] -= 2 * np.pi
+        while q_d[0] < -np.pi:
+            q_d[0] += 2 * np.pi
+        """
+        while q_d[1] > np.pi:
+            q_d[1] -= 2 * np.pi
+        while q_d[1] < -np.pi:
+            q_d[1] += 2 * np.pi
+
+        while q_d[2] > np.pi:
+            q_d[2] -= 2 * np.pi
+        while q_d[2] < -np.pi:
+            q_d[2] += 2 * np.pi
+        """
         if not np.any(np.isnan(q_d)):
-            #print(q_d)
-            self.robot_joint2_pub.publish(q_d[0])
-            self.robot_joint3_pub.publish(q_d[1])
-            self.robot_joint4_pub.publish(q_d[2])
+            print(q_d)
+            self.robot_joint1_pub.publish(q_d[0])
+            self.robot_joint2_pub.publish(q_d[1])
+            self.robot_joint3_pub.publish(q_d[2])
+            #self.robot_joint4_pub.publish(q_d[3])
         return q_d
 
     def calc_jacobian(self):
