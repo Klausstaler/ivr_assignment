@@ -4,6 +4,7 @@ import rospy
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from std_msgs.msg import Float64
+import time
 
 class Link:
     def __init__(self, theta=0.0, a=0.0, d=0.0, alpha=.0):
@@ -21,10 +22,22 @@ class KinematicsCalculator:
                                                          Link(theta=np.pi/2, alpha=np.pi/2), \
                                                          Link(a=3.5, alpha=-np.pi/2), \
                                                          Link(a=3)
+        self.target_pos = np.array([0, 0, 0])
+        self.time_previous_step = rospy.get_time()
         self.link1_sub = rospy.Subscriber("/robot/joint1_position_controller/command", Float64, self.link1_cb)
         self.link2_sub = rospy.Subscriber("/robot/joint2_position_controller/command", Float64, self.link2_cb)
         self.link3_sub = rospy.Subscriber("/robot/joint3_position_controller/command", Float64, self.link3_cb)
         self.link4_sub = rospy.Subscriber("/robot/joint4_position_controller/command", Float64, self.link4_cb)
+        self.target_x_sub =  rospy.Subscriber("/target/x_position_controller/command", Float64, self.target_x_cb)
+        self.target_y_sub = rospy.Subscriber("/target/y_position_controller/command", Float64, self.target_y_cb)
+        self.target_z_sub = rospy.Subscriber("/target/z_position_controller/command", Float64, self.target_z_cb)
+
+        #self.robot_joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=10)
+        #self.robot_joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
+        #self.robot_joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
+        # initialize error and derivative of error for trajectory tracking
+        self.error = np.array([0.0, 0.0, 0.0], dtype='float64')
+        self.error_d = np.array([0.0, 0.0, 0.0], dtype='float64')
 
     def link1_cb(self, data):
         self.link1.angle = data.data
@@ -38,6 +51,15 @@ class KinematicsCalculator:
     def link4_cb(self, data):
         self.link4.angle = data.data
         self.update_effector_estimate()
+    def target_x_cb(self, data):
+        self.target_pos[0] = data.data
+        #self.control_closed()
+    def target_y_cb(self, data):
+        self.target_pos[1] = data.data
+        #self.control_closed()
+    def target_z_cb(self, data):
+        self.target_pos[2] = data.data
+        #self.control_closed()
 
     def update_effector_estimate(self):
         link1_mat = self.calc_trans(self.link1.angle + self.link1.theta, d=self.link1.d, alpha=self.link2.alpha)
@@ -48,6 +70,7 @@ class KinematicsCalculator:
         self.x_pub.publish(joint_to_pos[0])
         self.y_pub.publish(joint_to_pos[1])
         self.z_pub.publish(joint_to_pos[2])
+        return joint_to_pos
 
     def calc_trans(self, theta=0.0, d=0.0, a=0.0, alpha=0.0):
         x_rot, x_trans, z_trans, z_rot = np.eye(4), np.eye(4), np.eye(4), np.eye(4)
@@ -58,6 +81,36 @@ class KinematicsCalculator:
 
         return z_rot @ z_trans @ x_trans @ x_rot
 
+    def control_closed(self):
+        # P gain
+        K_p = np.array([[10, 0, 0], [0, 10, 0], [0, 0, 10]])
+        # D gain
+        K_d = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]])
+        # estimate time step
+        cur_time = np.array([rospy.get_time()])
+        dt = cur_time - self.time_previous_step
+        if dt < 0.1:
+            return
+        self.time_previous_step = cur_time
+        # robot end-effector position
+        pos = self.update_effector_estimate()
+        # desired position
+        pos_d = self.target_pos
+        # estimate derivative of error
+        self.error_d = ((pos_d - pos) - self.error) / dt
+        # estimate error
+        self.error = pos_d - pos
+        q = np.array([self.link1.angle, self.link2.angle, self.link3.angle, self.link4.angle])
+        J_inv = np.linalg.pinv(self.calc_jacobian())  # calculating the pseudo inverse of Jacobian
+        dq_d = np.dot(J_inv, (np.dot(K_d, self.error_d.transpose()) + np.dot(K_p,
+                                                                             self.error.transpose())))  # control input (angular velocity of joints)
+        q_d = q + (dt * dq_d)  # control input (angular position of joints)
+        if not np.any(np.isnan(q_d)):
+            #print(q_d)
+            self.robot_joint2_pub.publish(q_d[1])
+            self.robot_joint3_pub.publish(q_d[2])
+            self.robot_joint4_pub.publish(q_d[3])
+        return q_d
 
     def calc_jacobian(self):
         jacobian = np.zeros((3,4))
@@ -114,10 +167,9 @@ class KinematicsCalculator:
         jacobian[2, 1] = self.link1.d*sin_a2*sin_a3*sin_t2
         # rest is zero
         return jacobian
-
-
     def getsin_cos(self, angle):
         return np.sin(angle), np.cos(angle)
+
     def invert_affine_mat(self, mat):
         inverse = np.eye(4)
         rot_inv = mat[:-1, :-1].T # transpose of rotation matrix is its' inverse
@@ -129,6 +181,7 @@ class KinematicsCalculator:
     def link_length(self, joint_start, joint_end, real_length):
         dist = np.sum((joint_start - joint_end) ** 2)
         return real_length / np.sqrt(dist)  # link length in pixels
+
 
 # run the code if the node is called
 if __name__ == '__main__':
