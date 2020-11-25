@@ -3,11 +3,13 @@ import numpy as np
 
 class ivr_vision:
     _blob_kernel_size = 5
+    _target_template = cv2.imread('target_template.png', cv2.IMREAD_COLOR)
     DEBUG = True
     YELLOW_RANGE = [(0, 100, 100), (0, 255, 255)]
     BLUE_RANGE = [(100, 0, 0), (255, 0, 0)]
     GREEN_RANGE = [(0, 100, 0), (0, 255, 0)]
     RED_RANGE = [(0, 0, 100), (0, 0, 255)]
+    ORANGE_RANGE = [(0, 51, 102), (0, 127, 255)]
 
     @staticmethod
     def debug_pose(joints):
@@ -101,6 +103,21 @@ class ivr_vision:
         cx = int(M['m10'] / M['m00'])
         cy = int(M['m01'] / M['m00'])
         return np.array([cx, cy])
+
+    @staticmethod
+    def detect_target(image):
+        template_size = 26.0
+        thresholded = cv2.inRange(image, ivr_vision.ORANGE_RANGE[0], ivr_vision.ORANGE_RANGE[1])
+        total = np.sum(np.sum(thresholded))
+        if total == 0.0:
+            return None  # target is occluded by something else
+        match = cv2.matchTemplate(thresholded, ivr_vision._target_template, cv2.TM_SQDIFF)
+        _, _, best_position, _ = cv2.minMaxLoc(match)
+        target = np.array([
+            best_position[0] + template_size / 2.0,
+            best_position[1] + template_size / 2.0
+        ])
+        return target
 
     @staticmethod
     def invert(color):
