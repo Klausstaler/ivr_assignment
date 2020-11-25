@@ -19,18 +19,40 @@ class ivr_vision:
         ']')
 
     @staticmethod
+    def debug_angles(angles):
+        print('[' +
+            f'B_X({angles[0]:.2f}), ' +
+            f'B_Y({angles[1]:.2f}), ' +
+            f'G_X({angles[2]:.2f})' +
+        ']')
+
+    @staticmethod
     def compute_joint_angles(joint_locs):
+        # if ivr_vision.DEBUG:
+        #     ivr_vision.debug_pose(joint_locs)
+        xy_norm = np.array([0.0, 0.0, 1.0])
+        xz_norm = np.array([0.0, 1.0, 0.0])
+        yz_norm = np.array([1.0, 0.0, 0.0])
+
+        # links 2, 3, 4 respectively
+        joint_angles = np.array([0.0, 0.0, 0.0])
+        # link 2: blue, around X-axis
+        B2G = joint_locs[2] - joint_locs[1]
+        joint_angles[0] = np.arctan2(B2G[2], B2G[1]) - np.pi / 2.0
+        # link 3: blue, around Y-axis
+        B2G = ivr_vision._rotate_around_x_axis(-joint_angles[0], B2G)  # make relative
+        joint_angles[1] = np.arctan2(B2G[2], B2G[0]) - np.pi / 2.0
+        # link 4: green, around X-axis
+        G2R = joint_locs[3] - joint_locs[2]
+        norm_projection = ivr_vision._project_vector(G2R, B2G)
+        joint_angles[2] = ivr_vision._vector_angle(G2R, norm_projection)
+        # handle end effector in unexpected position
+        # if np.linalg.norm(G2R + norm_projection) < np.linalg.norm(G2R):
+        #     print(4627)
+        #     joint_angles[2] = np.pi / 2.0 - joint_angles[2]
+
         if ivr_vision.DEBUG:
-            ivr_vision.debug_pose(joint_locs)
-        # add dummy joint
-        base = joint_locs[0]
-        joint_locs = np.insert(joint_locs, 0, np.array([base[0], base[1], base[2] - 100.0]), axis=0)
-        joint_angles = np.repeat(-1.0, 3)
-        # blue joint angle
-        blue_green = -1.0 * (joint_locs[3] - joint_locs[2])
-        blue_yellow = -1.0 * (joint_locs[1] - joint_locs[2])
-        angle = ivr_vision._vector_angle(blue_green, blue_yellow)
-        # print(f'blue angle: {angle:.2f}, BG: {blue_green}, BY: {blue_yellow}')
+            ivr_vision.debug_angles(joint_angles)
         return joint_angles
 
     @staticmethod
@@ -91,6 +113,19 @@ class ivr_vision:
     @staticmethod
     def _vector_angle(v1, v2):
         return np.arccos(np.dot(v1, v2) / (np.dot(v1, v1) * np.dot(v2, v2)))
+
+    @staticmethod
+    def _project_vector(v, n):
+        return v - np.multiply(np.dot(v, n) / np.dot(v, v), v)
+
+    @staticmethod
+    def _rotate_around_x_axis(angle, v):
+        M = np.array([
+            [1.0, 0.0          , 0.0                 ],
+            [0.0, np.cos(angle), -1.0 * np.cos(angle)],
+            [0.0, np.sin(angle),        np.cos(angle)]
+        ])
+        return np.dot(M, v)
 
 
 class camera:
