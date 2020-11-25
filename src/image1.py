@@ -23,6 +23,7 @@ class image_converter:
     self.joint3_controller = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=3)
     self.joint4_controller = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=3)
     self.joint_angles_pub = rospy.Publisher("/robot/joint_angles", Float64MultiArray, queue_size=3)
+    self._target_estimate_pub = rospy.Publisher("/robot/target_location_estimate", Float64MultiArray, queue_size=3)
     # todo: write custom message type to send/receive all 2D joint locations at once
     self.cam2_joint1_location_2d_sub = rospy.Subscriber("/camera2/joint1_location_2d",Float64MultiArray,self.joint_locations_callback1)
     self.cam2_joint2_location_2d_sub = rospy.Subscriber("/camera2/joint2_location_2d",Float64MultiArray,self.joint_locations_callback2)
@@ -38,6 +39,7 @@ class image_converter:
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
     self._prev_angles = None
+    self._prev_target_location = None
 
   def joint_locations_callback1(self, data):
     self._cam2_joint_locations_2d[0] = np.array(data.data)
@@ -97,7 +99,10 @@ class image_converter:
       print(e)
 
     self._joint_locations_2d = ivr_vision.detect_joint_locations(self.cv_image1)
-    self._target_location_2d = ivr_vision.detect_target(self.cv_image1)
+
+    new_target_location = ivr_vision.detect_target(self.cv_image1)
+    if new_target_location is not None:
+      self._target_location_2d = new_target_location
 
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy.png', cv_image)

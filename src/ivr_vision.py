@@ -8,6 +8,7 @@ class ivr_vision:
         os.path.dirname(os.path.realpath(__file__)) + '/target_template.png',
         cv2.IMREAD_COLOR
     )
+    _direction_correction = np.array([1.0, -1.0])  # Y-coordinates are flipped in cam feeds
     DEBUG = True
     YELLOW_RANGE = [(0, 100, 100), (0, 255, 255)]
     BLUE_RANGE = [(100, 0, 0), (255, 0, 0)]
@@ -53,7 +54,8 @@ class ivr_vision:
 
         if ivr_vision.DEBUG:
             # ivr_vision.debug_pose(joint_locs)
-            ivr_vision.debug_angles(joint_angles)
+            # ivr_vision.debug_angles(joint_angles)
+            pass
         return joint_angles
 
     @staticmethod
@@ -69,13 +71,12 @@ class ivr_vision:
         """cam1 is looking at YZ, cam2 is looking at XZ"""
         coords = np.repeat(-1.0, 4 * 3).reshape(4, -1)
         for i in range(cam1_locations_2d.shape[0]):
-            coords[i] = ivr_vision._combine_2d_to_3d(cam1_locations_2d, cam2_locations_2d)
+            coords[i] = ivr_vision._combine_2d_to_3d(cam1_locations_2d[i], cam2_locations_2d[i])
         return coords
 
     @staticmethod
     def detect_joint_locations(image):
         """detects joint locations in meters in orthogonal plane"""
-        direction_correction = np.array([1.0, -1.0])  # Y-coordinates are flipped in cam feeds
         yellow = ivr_vision.detect_blob(image, ivr_vision.YELLOW_RANGE)
         blue   = ivr_vision.detect_blob(image, ivr_vision.BLUE_RANGE)
         green  = ivr_vision.detect_blob(image, ivr_vision.GREEN_RANGE)
@@ -90,10 +91,10 @@ class ivr_vision:
             cv2.circle(image, tuple(green), r, ivr_vision.invert(ivr_vision.GREEN_RANGE[1]), -1)
             cv2.circle(image, tuple(red), r, ivr_vision.invert(ivr_vision.RED_RANGE[1]), -1)
         return np.array([
-            np.multiply(p2m * yellow - center, direction_correction),
-            np.multiply(p2m * blue - center, direction_correction),
-            np.multiply(p2m * green - center, direction_correction),
-            np.multiply(p2m * red - center, direction_correction)
+            np.multiply(p2m * yellow - center, ivr_vision._direction_correction),
+            np.multiply(p2m * blue - center, ivr_vision._direction_correction),
+            np.multiply(p2m * green - center, ivr_vision._direction_correction),
+            np.multiply(p2m * red - center, ivr_vision._direction_correction)
         ])
 
     @staticmethod
@@ -116,6 +117,9 @@ class ivr_vision:
 
     @staticmethod
     def detect_target(image):
+        yellow = ivr_vision.detect_blob(image, ivr_vision.YELLOW_RANGE)
+        blue   = ivr_vision.detect_blob(image, ivr_vision.BLUE_RANGE)
+        p2m = ivr_vision._pixel2meter(yellow, blue, 2.5)
         template_size = 26.0
         thresholded = cv2.inRange(image, ivr_vision.ORANGE_RANGE[0], ivr_vision.ORANGE_RANGE[1])
         total = np.sum(np.sum(thresholded))
@@ -130,7 +134,7 @@ class ivr_vision:
         target = np.array([int(cx), int(cy)])
         if ivr_vision.DEBUG:
             cv2.circle(image, tuple(target), 5, ivr_vision.invert(ivr_vision.ORANGE_RANGE[1]), -1)
-        return target
+        return np.multiply(p2m * (target - yellow), ivr_vision._direction_correction)
 
     @staticmethod
     def invert(color):
