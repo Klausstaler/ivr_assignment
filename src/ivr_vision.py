@@ -11,7 +11,20 @@ class ivr_vision:
 
     @staticmethod
     def compute_joint_angles(joint_locs):
-        return np.array([0.0, 0.1, 0.2], dtype=np.float64)  # TODO
+        # add dummy joint
+        base = joint_locs[0]
+        joint_locs = np.insert(joint_locs, 0, np.array([base[0], base[1], base[2] - 100.0]), axis=0)
+        joint_angles = np.repeat(-1.0, 3)
+        for i in range(1, 4):
+            vec_self_to_next = -1.0 * (joint_locs[i + 1] - joint_locs[i])
+            vec_self_to_prev = -1.0 * (joint_locs[i - 1] - joint_locs[i])
+            joint_angles[i - 1] = ivr_vision._vector_angle(
+                vec_self_to_next,
+                vec_self_to_prev
+            )
+            # if i == 2:
+            #     print(f'to prev: {vec_self_to_prev}, to next: {vec_self_to_next}, ')
+        return joint_angles
 
     @staticmethod
     def combine_joint_locations(cam1_locations_2d, cam2_locations_2d):
@@ -62,6 +75,10 @@ class ivr_vision:
     @staticmethod
     def invert(color):
         return (255 - color[0], 255 - color[1], 255 - color[2])
+
+    @staticmethod
+    def _vector_angle(v1, v2):
+        return np.arccos(np.dot(v1, v2) / (np.dot(v1, v1) * np.dot(v2, v2)))
 
 
 class camera:
