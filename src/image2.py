@@ -23,6 +23,8 @@ class image_converter:
     self.joint2_location_2d_pub = rospy.Publisher("/camera2/joint2_location_2d",Float64MultiArray, queue_size = 1)
     self.joint3_location_2d_pub = rospy.Publisher("/camera2/joint3_location_2d",Float64MultiArray, queue_size = 1)
     self.joint4_location_2d_pub = rospy.Publisher("/camera2/joint4_location_2d",Float64MultiArray, queue_size = 1)
+    self.target_location_2d_pub = rospy.Publisher("/camera2/target_location_2d", Float64MultiArray,queue_size=1)
+    self._target_location = None
     self.bridge = CvBridge()
 
 
@@ -40,13 +42,18 @@ class image_converter:
     self.joint3_location_2d_pub.publish(Float64MultiArray(data=self._joint_locations[2]))
     self.joint4_location_2d_pub.publish(Float64MultiArray(data=self._joint_locations[3]))
 
+    new_target_location = ivr_vision.detect_target(self.cv_image2)
+    if new_target_location is not None:
+      self._target_location = new_target_location
+      self.target_location_2d_pub.publish(Float64MultiArray(data=self._target_location))
+
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy.png', cv_image)
     im2=cv2.imshow('window2', self.cv_image2)
     cv2.waitKey(1)
 
     # Publish the results
-    try: 
+    try:
       self.image_pub2.publish(self.bridge.cv2_to_imgmsg(self.cv_image2, "bgr8"))
     except CvBridgeError as e:
       print(e)
@@ -63,5 +70,3 @@ def main(args):
 # run the code if the node is called
 if __name__ == '__main__':
     main(sys.argv)
-
-
