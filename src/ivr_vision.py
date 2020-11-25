@@ -28,11 +28,11 @@ class ivr_vision:
 
     @staticmethod
     def compute_joint_angles(joint_locs):
-        # if ivr_vision.DEBUG:
-        #     ivr_vision.debug_pose(joint_locs)
-        # xy_norm = np.array([0.0, 0.0, 1.0])
-        # xz_norm = np.array([0.0, 1.0, 0.0])
-        # yz_norm = np.array([1.0, 0.0, 0.0])
+        if ivr_vision.DEBUG:
+            ivr_vision.debug_pose(joint_locs)
+        xy_norm = np.array([0.0, 0.0, 1.0])
+        xz_norm = np.array([0.0, 1.0, 0.0])
+        yz_norm = np.array([1.0, 0.0, 0.0])
 
         # links 2, 3, 4 respectively
         joint_angles = np.array([0.0, 0.0, 0.0])
@@ -43,12 +43,12 @@ class ivr_vision:
         B2G = ivr_vision._rotate_around_x_axis(-joint_angles[0], B2G)  # make relative
         joint_angles[1] = np.arctan2(B2G[2], B2G[0]) - np.pi / 2.0
         # link 4: green, around X-axis
-        B2G = ivr_vision._rotate_around_x_axis(-joint_angles[0], B2G)  # make relative
+        # B2G = ivr_vision._rotate_around_x_axis(-joint_angles[0], B2G)  # make relative
         G2R = joint_locs[3] - joint_locs[2]
-        joint_angles[2] = np.arctan2(B2G[2], B2G[1]) - np.pi / 2.0
+        joint_angles[2] = np.arctan2(G2R[2], G2R[1]) - np.pi / 2.0
 
-        if ivr_vision.DEBUG:
-            ivr_vision.debug_angles(joint_angles)
+        # if ivr_vision.DEBUG:
+        #     ivr_vision.debug_angles(joint_angles)
         return joint_angles
 
     @staticmethod
@@ -64,6 +64,7 @@ class ivr_vision:
     @staticmethod
     def detect_joint_locations(image):
         """detects joint locations in meters in orthogonal plane"""
+        direction_correction = np.array([1.0, -1.0])  # Y-coordinates are flipped in cam feeds
         yellow = ivr_vision.detect_blob(image, ivr_vision.YELLOW_RANGE)
         blue   = ivr_vision.detect_blob(image, ivr_vision.BLUE_RANGE)
         green  = ivr_vision.detect_blob(image, ivr_vision.GREEN_RANGE)
@@ -78,10 +79,10 @@ class ivr_vision:
             cv2.circle(image, tuple(green), r, ivr_vision.invert(ivr_vision.GREEN_RANGE[1]), -1)
             cv2.circle(image, tuple(red), r, ivr_vision.invert(ivr_vision.RED_RANGE[1]), -1)
         return np.array([
-            -1.0 * (p2m * yellow - center),
-            -1.0 * (p2m * blue - center),
-            -1.0 * (p2m * green - center),
-            -1.0 * (p2m * red - center)
+            np.multiply(p2m * yellow - center, direction_correction),
+            np.multiply(p2m * blue - center, direction_correction),
+            np.multiply(p2m * green - center, direction_correction),
+            np.multiply(p2m * red - center, direction_correction)
         ])
 
     @staticmethod
