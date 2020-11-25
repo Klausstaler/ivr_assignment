@@ -47,7 +47,8 @@ class ivr_vision:
 
         if ivr_vision.DEBUG:
             # ivr_vision.debug_pose(joint_locs)
-            ivr_vision.debug_angles(joint_angles)
+            # ivr_vision.debug_angles(joint_angles)
+            pass
         return joint_angles
 
     @staticmethod
