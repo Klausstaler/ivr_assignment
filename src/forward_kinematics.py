@@ -3,7 +3,8 @@
 import rospy
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Float64MultiArray
+from sensor_msgs.msg import JointState
 
 class Link:
     def __init__(self, theta=0.0, a=0.0, d=0.0, alpha=.0):
@@ -21,12 +22,11 @@ class KinematicsCalculator:
                                                          Link(theta=np.pi/2, alpha=np.pi/2), \
                                                          Link(a=3.5, alpha=-np.pi/2), \
                                                          Link(a=3)
-        self.target_pos = np.array([0, 0, 0])
+        self.target_pos = np.array([0.0, 0., 0.])
         self.time_previous_step = 0.0
-        self.link1_sub = rospy.Subscriber("/robot/joint1_position_controller/command", Float64, self.link1_cb)
-        self.link2_sub = rospy.Subscriber("/robot/joint2_position_controller/command", Float64, self.link2_cb)
-        self.link3_sub = rospy.Subscriber("/robot/joint3_position_controller/command", Float64, self.link3_cb)
-        self.link4_sub = rospy.Subscriber("/robot/joint4_position_controller/command", Float64, self.link4_cb)
+
+        self.link_sub = rospy.Subscriber("/robot/joint_states", JointState, self.links_cb)
+        #self.link_sub = rospy.Subscriber("/robot/joint_angles", Float64MultiArray, self.links_cb)
         self.target_x_sub = rospy.Subscriber("/target/x_position_controller/command", Float64, self.target_x_cb)
         self.target_y_sub = rospy.Subscriber("/target/y_position_controller/command", Float64, self.target_y_cb)
         self.target_z_sub = rospy.Subscriber("/target/z_position_controller/command", Float64, self.target_z_cb)
@@ -34,10 +34,10 @@ class KinematicsCalculator:
         self.target_y_sub = rospy.Subscriber("forward_kinematics/y", Float64, self.target_y_cb)
         self.target_z_sub = rospy.Subscriber("forward_kinematics/z", Float64, self.target_z_cb)"""
 
-        self.robot_joint1_pub = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=10)
-        self.robot_joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=10)
-        self.robot_joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
-        self.robot_joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
+        self.robot_joint1_pub = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=1)
+        self.robot_joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=1)
+        self.robot_joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=1)
+        self.robot_joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=1)
         # initialize error and derivative of error for trajectory tracking
         self.error = np.array([0.0, 0.0, 0.0], dtype='float64')
         self.error_d = np.array([0.0, 0.0, 0.0], dtype='float64')
@@ -54,6 +54,19 @@ class KinematicsCalculator:
     def link4_cb(self, data):
         self.link4.angle = data.data
         #self.update_effector_estimate()
+    def links_cb(self, data):
+        if type(data) == JointState:
+            angles = data.position
+            self.link1.angle = angles[0]
+            self.link2.angle = angles[1]
+            self.link3.angle = angles[2]
+            self.link4.angle = angles[3]
+            pass
+        else:
+            self.link2.angle = data.data[0]
+            self.link3.angle = data.data[1]
+            self.link4.angle = data.data[2]
+
     def target_x_cb(self, data):
         self.target_pos[0] = data.data
         #self.control_closed()
@@ -86,9 +99,9 @@ class KinematicsCalculator:
 
     def control_closed(self):
         # P gain
-        K_p = np.array([[1, 0.0, 0.0], [0.0, 1, 0.0], [0.0, 0.0, 1]])
+        K_p = np.array([[.3, 0.0, 0.0], [0.0, .3, 0.0], [0.0, 0.0, .3]])
         # D gain
-        #K_d = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]])
+        K_d = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]])
         K_d = np.zeros(shape=(3,3))
         # estimate time step
         cur_time = np.array([rospy.get_time()])
@@ -111,8 +124,9 @@ class KinematicsCalculator:
         self.time_previous_step = cur_time
 
         q = np.array([self.link1.angle, self.link2.angle, self.link3.angle, self.link4.angle]) # by removing link 1 we fixed it
-        q = q[1:]
-        jacobian = self.calc_jacobian()[:, 1:] # delete first column as this accounts for joint 1
+        #q = q[1:]
+        q = np.delete(q, 3)
+        jacobian = np.delete(self.calc_jacobian(),3, 1)# delete first column as this accounts for joint 1
         #jacobian = self.calc_jacobian()
 
 
@@ -121,34 +135,26 @@ class KinematicsCalculator:
         q_d = q + (dt * dq_d)  # control input (angular position of joints)
 
 
-        while q_d[0] > np.pi:
-            q_d[0] -= 2 * np.pi
-        while q_d[0] < -np.pi:
-            q_d[0] += 2 * np.pi
-        while q_d[1] > np.pi:
-            q_d[1] -= 2 * np.pi
-        while q_d[1] < -np.pi:
-            q_d[1] += 2 * np.pi
-        while q_d[2] > np.pi:
-            q_d[2] -= 2 * np.pi
-        while q_d[2] < -np.pi:
-            q_d[2] += 2 * np.pi
-        """q_d[0] = min(q_d[0], np.pi / 2)
-        q_d[0] = max(q_d[0], -np.pi / 2)
+        for i, num in enumerate(q_d):
+            while q_d[i] > np.pi:
+                q_d[i] -= 2 * np.pi
+            while q_d[i] < -np.pi:
+                q_d[i] += 2 * np.pi
+        #q_d[3] = min(q_d[0], np.pi / 2)
+        #q_d[3] = max(q_d[0], -np.pi / 2)
         q_d[1] = min(q_d[1], np.pi/2)
         q_d[1] = max(q_d[1],-np.pi/2)
         q_d[2] = min(q_d[2], np.pi / 2)
-        q_d[2] = max(q_d[2], -np.pi / 2)"""
+        q_d[2] = max(q_d[2], -np.pi / 2)
 
 
         if not np.any(np.isnan(q_d)):
             print(q_d)
-            self.robot_joint2_pub.publish(q_d[0])
-            self.robot_joint3_pub.publish(q_d[1])
-            self.robot_joint4_pub.publish(q_d[2])
+            print("Desired position", pos_d)
+            self.robot_joint1_pub.publish(q_d[0])
+            self.robot_joint2_pub.publish(q_d[1])
+            self.robot_joint3_pub.publish(q_d[2])
             #self.robot_joint4_pub.publish(q_d[3])
-        pos = self.update_effector_estimate()
-        print("Estimated position", pos)
         return q_d
 
     def calc_jacobian(self):
