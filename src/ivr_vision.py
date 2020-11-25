@@ -10,20 +10,27 @@ class ivr_vision:
     RED_RANGE = [(0, 0, 100), (0, 0, 255)]
 
     @staticmethod
+    def debug_pose(joints):
+        print('[' +
+            f'Y({joints[0][0]:.2f}, {joints[0][1]:.2f}, {joints[0][2]:.2f}), ' +
+            f'B({joints[1][0]:.2f}, {joints[1][1]:.2f}, {joints[1][2]:.2f}), ' +
+            f'G({joints[2][0]:.2f}, {joints[2][1]:.2f}, {joints[2][2]:.2f}), ' +
+            f'R({joints[3][0]:.2f}, {joints[3][1]:.2f}, {joints[3][2]:.2f})' +
+        ']')
+
+    @staticmethod
     def compute_joint_angles(joint_locs):
+        if ivr_vision.DEBUG:
+            ivr_vision.debug_pose(joint_locs)
         # add dummy joint
         base = joint_locs[0]
         joint_locs = np.insert(joint_locs, 0, np.array([base[0], base[1], base[2] - 100.0]), axis=0)
         joint_angles = np.repeat(-1.0, 3)
-        for i in range(1, 4):
-            vec_self_to_next = -1.0 * (joint_locs[i + 1] - joint_locs[i])
-            vec_self_to_prev = -1.0 * (joint_locs[i - 1] - joint_locs[i])
-            joint_angles[i - 1] = ivr_vision._vector_angle(
-                vec_self_to_next,
-                vec_self_to_prev
-            )
-            # if i == 2:
-            #     print(f'to prev: {vec_self_to_prev}, to next: {vec_self_to_next}, ')
+        # blue joint angle
+        blue_green = -1.0 * (joint_locs[3] - joint_locs[2])
+        blue_yellow = -1.0 * (joint_locs[1] - joint_locs[2])
+        angle = ivr_vision._vector_angle(blue_green, blue_yellow)
+        # print(f'blue angle: {angle:.2f}, BG: {blue_green}, BY: {blue_yellow}')
         return joint_angles
 
     @staticmethod
@@ -40,10 +47,10 @@ class ivr_vision:
     def detect_joint_locations(image):
         """detects joint locations in meters in orthogonal plane"""
         yellow = ivr_vision.detect_blob(image, ivr_vision.YELLOW_RANGE)
-        blue = ivr_vision.detect_blob(image, ivr_vision.BLUE_RANGE)
-        green = ivr_vision.detect_blob(image, ivr_vision.GREEN_RANGE)
-        red = ivr_vision.detect_blob(image, ivr_vision.RED_RANGE)
-        p2m = ivr_vision._pixel2meter(yellow, blue, 2.5)
+        blue   = ivr_vision.detect_blob(image, ivr_vision.BLUE_RANGE)
+        green  = ivr_vision.detect_blob(image, ivr_vision.GREEN_RANGE)
+        red    = ivr_vision.detect_blob(image, ivr_vision.RED_RANGE)
+        p2m    = ivr_vision._pixel2meter(yellow, blue, 2.5)
         center = p2m * yellow
         if ivr_vision.DEBUG:
             r = 5
@@ -52,7 +59,12 @@ class ivr_vision:
             cv2.circle(image, tuple(blue), r, ivr_vision.invert(ivr_vision.BLUE_RANGE[1]), -1)
             cv2.circle(image, tuple(green), r, ivr_vision.invert(ivr_vision.GREEN_RANGE[1]), -1)
             cv2.circle(image, tuple(red), r, ivr_vision.invert(ivr_vision.RED_RANGE[1]), -1)
-        return np.array([p2m * yellow, p2m * blue, p2m * green, p2m * red])
+        return np.array([
+            -1.0 * (p2m * yellow - center),
+            -1.0 * (p2m * blue - center),
+            -1.0 * (p2m * green - center),
+            -1.0 * (p2m * red - center)
+        ])
 
     @staticmethod
     def _pixel2meter(joint1, joint2, real_dist):
