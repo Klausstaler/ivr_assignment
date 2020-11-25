@@ -53,13 +53,19 @@ class ivr_vision:
         return joint_angles
 
     @staticmethod
+    def _combine_2d_to_3d(yz_2d, xz_2d):
+        return np.array([
+            xz_2d[0],
+            yz_2d[0],
+            (yz_2d[1] + xz_2d[1]) / 2.0
+        ])
+
+    @staticmethod
     def combine_joint_locations(cam1_locations_2d, cam2_locations_2d):
         """cam1 is looking at YZ, cam2 is looking at XZ"""
         coords = np.repeat(-1.0, 4 * 3).reshape(4, -1)
         for i in range(cam1_locations_2d.shape[0]):
-            coords[i, 0] = cam2_locations_2d[i, 0]
-            coords[i, 1] = cam1_locations_2d[i, 0]
-            coords[i, 2] = (cam1_locations_2d[i, 1] + cam2_locations_2d[i, 1]) / 2.0
+            coords[i] = ivr_vision._combine_2d_to_3d(cam1_locations_2d, cam2_locations_2d)
         return coords
 
     @staticmethod
