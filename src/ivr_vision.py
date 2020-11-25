@@ -121,18 +121,14 @@ class ivr_vision:
         total = np.sum(np.sum(thresholded))
         if total == 0.0:
             return None  # target is occluded by something else
-        # print(image.shape)
-        # print(image[20:25,20:25])
-        # print(ivr_vision._target_template.shape)
-        # print(thresholded.shape)
         match = cv2.matchTemplate(image, ivr_vision._target_template, 1)
-        _, _, best_position, _ = cv2.minMaxLoc(match)
+        best_val, _, best_position, _ = cv2.minMaxLoc(match)
+        if best_val > 0.11:
+            return None  # target is occluded by something else
         cx = best_position[0] + template_size / 2.0
         cy = best_position[1] + template_size / 2.0
         target = np.array([int(cx), int(cy)])
         if ivr_vision.DEBUG:
-            r = 5
-            # draw dots in the centers to check that this works
             cv2.circle(image, tuple(target), 5, ivr_vision.invert(ivr_vision.ORANGE_RANGE[1]), -1)
         return target
 
