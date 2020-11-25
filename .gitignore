@@ -4,5 +4,4 @@ devel
 *.swp
 *.cache
 .idea
-
 .ipynb_checkpoints
