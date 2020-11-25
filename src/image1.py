@@ -28,8 +28,11 @@ class image_converter:
     self.cam2_joint2_location_2d_sub = rospy.Subscriber("/camera2/joint2_location_2d",Float64MultiArray,self.joint_locations_callback2)
     self.cam2_joint3_location_2d_sub = rospy.Subscriber("/camera2/joint3_location_2d",Float64MultiArray,self.joint_locations_callback3)
     self.cam2_joint4_location_2d_sub = rospy.Subscriber("/camera2/joint4_location_2d",Float64MultiArray,self.joint_locations_callback4)
+    self.cam2_target_location_2d_sub = rospy.Subscriber("/camera2/target_location_2d", Float64MultiArray,self.target_location_callback)
     self._cam2_joint_locations_2d = np.repeat(None, 2 * 4).reshape(4, -1)
+    self._cam2_target_location_2d = None
     self._joint_locations_2d = None
+    self._target_location_2d = None
     self._cam1_location = np.array([18.0, 0.0, 6.25])
     self._cam2_location = np.array([0.0, -18.0, 6.25])
     # initialize the bridge between openCV and ROS
@@ -69,6 +72,23 @@ class image_converter:
       print(f'angles: {self._joint_angles}')
       self._prev_angles = self._joint_angles
 
+  def target_location_callback(self, data):
+    self._cam2_target_location_2d = np.array(data.data)
+    if self._target_location_2d is None:
+      return
+    self._target_location_3d = ivr_vision._combine_2d_to_3d(
+      self._target_location_2d,
+      self._cam2_target_location_2d
+    )
+    message = Float64MultiArray()
+    message.data = self._target_location_3d
+    self._target_estimate_pub.publish(message)
+    if ivr_vision.DEBUG and \
+      (self._prev_target_location is None or \
+         np.linalg.norm(self._prev_target_location - self._target_location_3d) > 0.2):
+      print(f'target: {self._target_location_3d}')
+      self._prev_target_location = self._target_location_3d
+
   # Recieve data from camera 1, process it, and publish
   def callback1(self,data):
     try:
@@ -77,6 +97,7 @@ class image_converter:
       print(e)
 
     self._joint_locations_2d = ivr_vision.detect_joint_locations(self.cv_image1)
+    self._target_location_2d = ivr_vision.detect_target(self.cv_image1)
 
     # Uncomment if you want to save the image
     #cv2.imwrite('image_copy.png', cv_image)

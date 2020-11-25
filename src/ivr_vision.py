@@ -1,9 +1,13 @@
 import cv2
 import numpy as np
+import os
 
 class ivr_vision:
     _blob_kernel_size = 5
-    _target_template = cv2.imread('target_template.png', cv2.IMREAD_COLOR)
+    _target_template = cv2.imread(
+        os.path.dirname(os.path.realpath(__file__)) + '/target_template.png',
+        cv2.IMREAD_COLOR
+    )
     DEBUG = True
     YELLOW_RANGE = [(0, 100, 100), (0, 255, 255)]
     BLUE_RANGE = [(100, 0, 0), (255, 0, 0)]
@@ -117,6 +121,7 @@ class ivr_vision:
         total = np.sum(np.sum(thresholded))
         if total == 0.0:
             return None  # target is occluded by something else
+        print(ivr_vision._target_template.shape[::-1])
         match = cv2.matchTemplate(thresholded, ivr_vision._target_template, cv2.TM_SQDIFF)
         _, _, best_position, _ = cv2.minMaxLoc(match)
         target = np.array([
