@@ -4,7 +4,6 @@ import rospy
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from std_msgs.msg import Float64
-import time
 
 class Link:
     def __init__(self, theta=0.0, a=0.0, d=0.0, alpha=.0):
@@ -28,9 +27,12 @@ class KinematicsCalculator:
         self.link2_sub = rospy.Subscriber("/robot/joint2_position_controller/command", Float64, self.link2_cb)
         self.link3_sub = rospy.Subscriber("/robot/joint3_position_controller/command", Float64, self.link3_cb)
         self.link4_sub = rospy.Subscriber("/robot/joint4_position_controller/command", Float64, self.link4_cb)
-        self.target_x_sub =  rospy.Subscriber("/target/x_position_controller/command", Float64, self.target_x_cb)
+        self.target_x_sub = rospy.Subscriber("/target/x_position_controller/command", Float64, self.target_x_cb)
         self.target_y_sub = rospy.Subscriber("/target/y_position_controller/command", Float64, self.target_y_cb)
         self.target_z_sub = rospy.Subscriber("/target/z_position_controller/command", Float64, self.target_z_cb)
+        """self.target_x_sub = rospy.Subscriber("forward_kinematics/x", Float64, self.target_x_cb)
+        self.target_y_sub = rospy.Subscriber("forward_kinematics/y", Float64, self.target_y_cb)
+        self.target_z_sub = rospy.Subscriber("forward_kinematics/z", Float64, self.target_z_cb)"""
 
         self.robot_joint1_pub = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=10)
         self.robot_joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=10)
@@ -68,8 +70,8 @@ class KinematicsCalculator:
         link3_mat = self.calc_trans(self.link3.angle, a=self.link3.a, alpha=self.link3.alpha)
         link4_mat = self.calc_trans(self.link4.angle, a=self.link4.a)
         joint_to_pos = (link1_mat@link2_mat@link3_mat@link4_mat)[:-1, -1]
-        self.x_pub.publish(joint_to_pos[0])
-        self.y_pub.publish(joint_to_pos[1])
+        #self.x_pub.publish(joint_to_pos[0])
+        #self.y_pub.publish(joint_to_pos[1])
         self.z_pub.publish(joint_to_pos[2])
         return joint_to_pos
 
@@ -84,31 +86,33 @@ class KinematicsCalculator:
 
     def control_closed(self):
         # P gain
-        K_p = np.array([[2, 0, 0], [0, 2, 0], [0, 0, 2]])
+        K_p = np.array([[1, 0.0, 0.0], [0.0, 1, 0.0], [0.0, 0.0, 1]])
         # D gain
-        K_d = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]])
+        #K_d = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]])
+        K_d = np.zeros(shape=(3,3))
         # estimate time step
         cur_time = np.array([rospy.get_time()])
         dt = cur_time - self.time_previous_step
-        """
-        if dt < 0.3:
+
+        if dt == 0:
             return
-        """
-        self.time_previous_step = cur_time
 
         # robot end-effector position
         pos = self.update_effector_estimate()
-        print("Estimated position", pos)
         # desired position
         pos_d = self.target_pos
         # estimate derivative of error
         self.error_d = ((pos_d - pos) - self.error) / dt
         # estimate error
         self.error = pos_d - pos
+        if self.time_previous_step == 0:
+            self.time_previous_step = cur_time
+            return
+        self.time_previous_step = cur_time
+
         q = np.array([self.link1.angle, self.link2.angle, self.link3.angle, self.link4.angle]) # by removing link 1 we fixed it
-        print("Previous q", q)
-        q = np.delete(q, 0)
-        jacobian = np.delete(self.calc_jacobian(), 3, 1) # delete first row as this accounts for joint 1
+        q = q[1:]
+        jacobian = self.calc_jacobian()[:, 1:] # delete first column as this accounts for joint 1
         #jacobian = self.calc_jacobian()
 
 
@@ -121,23 +125,30 @@ class KinematicsCalculator:
             q_d[0] -= 2 * np.pi
         while q_d[0] < -np.pi:
             q_d[0] += 2 * np.pi
-        """
         while q_d[1] > np.pi:
             q_d[1] -= 2 * np.pi
         while q_d[1] < -np.pi:
             q_d[1] += 2 * np.pi
-
         while q_d[2] > np.pi:
             q_d[2] -= 2 * np.pi
         while q_d[2] < -np.pi:
             q_d[2] += 2 * np.pi
-        """
+        """q_d[0] = min(q_d[0], np.pi / 2)
+        q_d[0] = max(q_d[0], -np.pi / 2)
+        q_d[1] = min(q_d[1], np.pi/2)
+        q_d[1] = max(q_d[1],-np.pi/2)
+        q_d[2] = min(q_d[2], np.pi / 2)
+        q_d[2] = max(q_d[2], -np.pi / 2)"""
+
+
         if not np.any(np.isnan(q_d)):
             print(q_d)
-            self.robot_joint1_pub.publish(q_d[0])
-            self.robot_joint2_pub.publish(q_d[1])
-            self.robot_joint3_pub.publish(q_d[2])
+            self.robot_joint2_pub.publish(q_d[0])
+            self.robot_joint3_pub.publish(q_d[1])
+            self.robot_joint4_pub.publish(q_d[2])
             #self.robot_joint4_pub.publish(q_d[3])
+        pos = self.update_effector_estimate()
+        print("Estimated position", pos)
         return q_d
 
     def calc_jacobian(self):
