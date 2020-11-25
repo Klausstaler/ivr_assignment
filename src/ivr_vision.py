@@ -28,8 +28,6 @@ class ivr_vision:
 
     @staticmethod
     def compute_joint_angles(joint_locs):
-        if ivr_vision.DEBUG:
-            ivr_vision.debug_pose(joint_locs)
         xy_norm = np.array([0.0, 0.0, 1.0])
         xz_norm = np.array([0.0, 1.0, 0.0])
         yz_norm = np.array([1.0, 0.0, 0.0])
@@ -41,14 +39,15 @@ class ivr_vision:
         joint_angles[0] = np.arctan2(B2G[2], B2G[1]) - np.pi / 2.0
         # link 3: blue, around Y-axis
         B2G = ivr_vision._rotate_around_x_axis(-joint_angles[0], B2G)  # make relative
-        joint_angles[1] = np.arctan2(B2G[2], B2G[0]) - np.pi / 2.0
+        joint_angles[1] = np.arctan2(B2G[0], B2G[2])
         # link 4: green, around X-axis
-        # B2G = ivr_vision._rotate_around_x_axis(-joint_angles[0], B2G)  # make relative
+        # B2G = ivr_vision._rotate_around_x_axis(joint_angles[0], B2G)  # make relative
         G2R = joint_locs[3] - joint_locs[2]
-        joint_angles[2] = np.arctan2(G2R[2], G2R[1]) - np.pi / 2.0
+        joint_angles[2] = np.arctan2(G2R[2], G2R[1]) - joint_angles[0] - np.pi / 2.0
 
-        # if ivr_vision.DEBUG:
-        #     ivr_vision.debug_angles(joint_angles)
+        if ivr_vision.DEBUG:
+            # ivr_vision.debug_pose(joint_locs)
+            ivr_vision.debug_angles(joint_angles)
         return joint_angles
 
     @staticmethod
