@@ -30,9 +30,9 @@ class ivr_vision:
     def compute_joint_angles(joint_locs):
         # if ivr_vision.DEBUG:
         #     ivr_vision.debug_pose(joint_locs)
-        xy_norm = np.array([0.0, 0.0, 1.0])
-        xz_norm = np.array([0.0, 1.0, 0.0])
-        yz_norm = np.array([1.0, 0.0, 0.0])
+        # xy_norm = np.array([0.0, 0.0, 1.0])
+        # xz_norm = np.array([0.0, 1.0, 0.0])
+        # yz_norm = np.array([1.0, 0.0, 0.0])
 
         # links 2, 3, 4 respectively
         joint_angles = np.array([0.0, 0.0, 0.0])
@@ -43,13 +43,9 @@ class ivr_vision:
         B2G = ivr_vision._rotate_around_x_axis(-joint_angles[0], B2G)  # make relative
         joint_angles[1] = np.arctan2(B2G[2], B2G[0]) - np.pi / 2.0
         # link 4: green, around X-axis
+        B2G = ivr_vision._rotate_around_x_axis(-joint_angles[0], B2G)  # make relative
         G2R = joint_locs[3] - joint_locs[2]
-        norm_projection = ivr_vision._project_vector(G2R, B2G)
-        joint_angles[2] = ivr_vision._vector_angle(G2R, norm_projection)
-        # handle end effector in unexpected position
-        # if np.linalg.norm(G2R + norm_projection) < np.linalg.norm(G2R):
-        #     print(4627)
-        #     joint_angles[2] = np.pi / 2.0 - joint_angles[2]
+        joint_angles[2] = np.arctan2(B2G[2], B2G[1]) - np.pi / 2.0
 
         if ivr_vision.DEBUG:
             ivr_vision.debug_angles(joint_angles)
