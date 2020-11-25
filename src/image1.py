@@ -68,6 +68,7 @@ class image_converter:
       (self._prev_angles is None or np.linalg.norm(self._prev_angles - self._joint_angles) > 0.2):
       print(f'angles: {self._joint_angles}')
       self._prev_angles = self._joint_angles
+    self._end_effector_location = ivr_vision.compute_end_effector_location(self._joint_angles)
 
   # Recieve data from camera 1, process it, and publish
   def callback1(self,data):

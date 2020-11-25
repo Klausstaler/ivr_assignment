@@ -8,6 +8,9 @@ class ivr_vision:
     BLUE_RANGE = [(100, 0, 0), (255, 0, 0)]
     GREEN_RANGE = [(0, 100, 0), (0, 255, 0)]
     RED_RANGE = [(0, 0, 100), (0, 0, 255)]
+    XY_NORM = np.array([0.0, 0.0, 1.0])
+    XZ_NORM = np.array([0.0, 1.0, 0.0])
+    YZ_NORM = np.array([1.0, 0.0, 0.0])
 
     @staticmethod
     def debug_pose(joints):
@@ -27,11 +30,36 @@ class ivr_vision:
         ']')
 
     @staticmethod
-    def compute_joint_angles(joint_locs):
-        xy_norm = np.array([0.0, 0.0, 1.0])
-        xz_norm = np.array([0.0, 1.0, 0.0])
-        yz_norm = np.array([1.0, 0.0, 0.0])
+    def _intersect_projection_planes(dir1, axis1, dir2, axis2):
+        norm1 = np.cross(dir1, axis1)
+        norm2 = np.cross(dir2, axis2)
+        return np.cross(norm1, norm2)  # this is the direction of the intersecting line
 
+
+    @staticmethod
+    def compute_end_effector_location(angles):
+        b_pos = np.array([0.0, 0.0, 2.5])  # by definition
+
+        # compute green joint location
+        B2G_len = 3.5
+        B2G_yz = np.array([0.0, B2G_len * np.sin(angles[0]), B2G_len * np.cos(angles[0])])
+        B2G_xz = np.array([B2G_len * np.sin(angles[1]), 0.0, B2G_len * np.cos(angles[1])])
+        B2G_dir = ivr_vision._intersect_projection_planes(
+            B2G_yz, ivr_vision.YZ_NORM,
+            B2G_xz, ivr_vision.XZ_NORM
+        )
+        # length and direction of planes intersection allows us to determine 3D location
+        t = np.sqrt(np.square(B2G_len) / np.dot(B2G_dir, B2G_dir))
+        B2G = t * B2G_dir
+        g_pos = b_pos + B2G
+
+        if ivr_vision.DEBUG:
+            print(f'EE({g_pos[0]:.1f}, {g_pos[1]:.1f}, {g_pos[2]:.1f})')
+
+        return g_pos  # todo: red location
+
+    @staticmethod
+    def compute_joint_angles(joint_locs):
         # links 2, 3, 4 respectively
         joint_angles = np.array([0.0, 0.0, 0.0])
         # link 2: blue, around X-axis
