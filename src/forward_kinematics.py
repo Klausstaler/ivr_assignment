@@ -5,7 +5,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 from std_msgs.msg import Float64, Float64MultiArray
 from sensor_msgs.msg import JointState
-
+from jacobian_symp import calculate_jacobian
 class Link:
     def __init__(self, theta=0.0, a=0.0, d=0.0, alpha=.0):
         self.angle, self.theta, self.a, self.d, self.alpha = 0, theta, a, d, alpha
@@ -21,57 +21,7 @@ class Link:
 class Robot:
     def __init__(self, link1, link2, link3, link4):
         self.link1, self.link2, self.link3, self.link4 = link1, link2, link3, link4
-
-    def calc_jacobian(self):
-        jacobian = np.zeros((3,4))
-
-        # this is gonna look very nasty
-
-        # angles of first joint
-        sin_t1, cos_t1 = self.getsin_cos(self.link1.theta + self.link1.angle)
-        # second joint
-        sin_t2, cos_t2 = self.getsin_cos(self.link2.angle + self.link2.theta)
-        # third joint
-        sin_t3, cos_t3 = self.getsin_cos(self.link3.angle + self.link3.theta)
-        # fourth joint
-        sin_t4, cos_t4 = self.getsin_cos(self.link4.angle + self.link4.theta)
-
-        # now we get the derivate of x with respect to all angles
-
-        # x/dt1
-        jacobian[0, 0] = (-3*sin_t1*sin_t3 + 3*sin_t2*cos_t1*cos_t3)*cos_t4 - 3.5*sin_t1*sin_t3 +\
-                         3.5*sin_t2*cos_t1*cos_t3 + 3*sin_t4*cos_t1*cos_t2
-        # x/dt2
-        jacobian[0, 1] = -3*sin_t1*sin_t2*sin_t4 + 3*sin_t1*cos_t2*cos_t3*cos_t4 + 3.5*sin_t1*cos_t2*cos_t3
-        # now x/dt3
-        jacobian[0, 2] = (-3*sin_t1*sin_t2*sin_t3 + 3*cos_t1*cos_t3)*cos_t4 - 3.5*sin_t1*sin_t2*sin_t3 + \
-                            3.5*cos_t1*cos_t3
-        # now x/dt4
-        jacobian[0, 3] = -(3*sin_t1*sin_t2*cos_t3 +3*sin_t3*cos_t1)*sin_t4 + 3*sin_t1*cos_t2*cos_t4
-        # now y with respect to all angles
-        # y/dt1
-        jacobian[1, 0] = (3*sin_t1*sin_t2*cos_t3 + 3*sin_t3*cos_t1)*cos_t4 + 3.5*sin_t1*sin_t2*cos_t3 + \
-                        3*sin_t1*sin_t4*cos_t2 + 3.5*sin_t3*cos_t1
-        # so we start with y/dt2
-        jacobian[1, 1] = 3*sin_t2*sin_t4*cos_t1 - 3*cos_t1*cos_t2*cos_t3*cos_t4 - 3.5*cos_t1*cos_t2*cos_t3
-        # now y/dt3
-        jacobian[1, 2] = (3*sin_t1*sin_t3 + 3*sin_t2*sin_t3*cos_t1)*cos_t4 + 3.5*sin_t1*cos_t3 + 3.5*sin_t2*sin_t3*cos_t1
-        # now y/dt4
-        jacobian[1, 3] = -(3*sin_t1*sin_t3 - 3*sin_t2*cos_t1*cos_t3)*sin_t4 - 3*cos_t1*cos_t2*cos_t4
-
-        # now z with respect to all angles
-        # z/dt1 is zero
-        # now z/dt2
-        jacobian[2, 1] = -3*sin_t2*cos_t3*cos_t4 - 3.5*sin_t2*cos_t3 - 3*sin_t4*cos_t2
-        # z/dt3
-        jacobian[2, 2] = -3*sin_t3*cos_t2*cos_t4 - 3.5*sin_t3*cos_t2
-
-        # z dt/4
-        jacobian[2, 3] = -3*sin_t2*cos_t4 - 3*sin_t4*cos_t2*cos_t3
-        return jacobian
-
-    def getsin_cos(self, angle):
-        return np.sin(angle), np.cos(angle)
+        self.jac = calculate_jacobian(self)
 
     def update_effector_estimate(self):
         link1_mat = self.link1.calc_trans()
@@ -152,7 +102,7 @@ class KinematicsCalculator:
 
     def control_closed(self):
         # P gain
-        p, d = 1, 0.2
+        p, d = 3, 0.2
         K_p = np.array([[p, 0.0, 0.0], [0.0, p, 0.0], [0.0, 0.0, p]])
         # D gain
         K_d = np.array([[d, 0, 0], [0, d, 0], [0, 0, d]])
@@ -180,10 +130,11 @@ class KinematicsCalculator:
 
         q = np.array([robot.link1.angle, robot.link2.angle, robot.link3.angle, robot.link4.angle]) # by removing link 1 we fixed it
         #q = q[1:]
-        q = np.delete(q, 0)
-        jacobian = np.delete(robot.calc_jacobian(),0, 1)# delete first column as this accounts for joint 1
+        q[0] = 0
+        jacobian = robot.jac(0, q[1], q[2], q[3])
+        jacobian[:, 0] = 0
         #jacobian = self.calc_jacobian()
-        J_inv = jacobian.T @ np.linalg.inv(jacobian@jacobian.T + (4*np.eye(len(jacobian))))
+        J_inv = jacobian.T @ np.linalg.inv(jacobian@jacobian.T)
 
         #J_inv = np.linalg.pinv(jacobian)  # calculating the pseudo inverse of Jacobian
         #print(K_d.shape)
@@ -206,9 +157,9 @@ class KinematicsCalculator:
             print(q_d)
             print("Desired position", pos_d)
             print("Current position", pos)
-            self.robot_joint2_pub.publish(q_d[0])
-            self.robot_joint3_pub.publish(q_d[1])
-            self.robot_joint4_pub.publish(q_d[2])
+            self.robot_joint2_pub.publish(q_d[1])
+            self.robot_joint3_pub.publish(q_d[2])
+            self.robot_joint4_pub.publish(q_d[3])
             #self.robot_joint4_pub.publish(q_d[2])
         return q_d
 
