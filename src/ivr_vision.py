@@ -127,8 +127,9 @@ class ivr_vision:
         match = cv2.matchTemplate(thresholded, ivr_vision._target_template, 1)
         best_val, _, best_position, _ = cv2.minMaxLoc(match)
         if ivr_vision.DEBUG:
-            im_debug=cv2.imshow('debug', match)
-            print(best_val)
+            # im_debug=cv2.imshow('debug', match)
+            # print(best_val)
+            pass
         if best_val > 0.6:
             return None  # target is occluded by something else
         # find center
