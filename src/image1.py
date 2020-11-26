@@ -79,12 +79,8 @@ class image_converter:
       self._cam2_joint_locations_2d
     )
     self._joint_angles = ivr_vision.compute_joint_angles(joint_locations_3d)
-    #print("Red location", joint_locations_3d[3, :])
     robot.link1.angle, robot.link2.angle, robot.link3.angle, robot.link4. angle = self.gt_angles
     gt_pos = robot.update_effector_estimate()
-    #print(gt_pos, self.gt_angles[1:])
-    #self._joint_angles = self.link1_estimator.links_cb(self._joint_angles, joint_locations_3d[3, :])
-    print("GT location", gt_pos)
     self._joint_angles = self.link1_estimator.links_cb(self.gt_angles[1:], gt_pos)
     message = Float64MultiArray()
     message.data = self._joint_angles

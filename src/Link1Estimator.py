@@ -50,7 +50,6 @@ class Link1Estimator:
         #plt.scatter([x[0] for x in all_errors], [x[1] for x in all_errors])
         #plt.show()
         best_angle = self.normalize_angle(best_angle)
-        print("ESTIMATED ANGLE", best_angle)
         return best_angle
 
     def normalize_angle(self, curr_angle, offset=0.0):
