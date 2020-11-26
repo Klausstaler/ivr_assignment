@@ -49,7 +49,7 @@ class KinematicsCalculator:
         self.time_previous_step = np.array([0.0])
 
         #self.link_sub = rospy.Subscriber("/robot/joint_states", JointState, self.links_cb)
-        self.link_sub = rospy.Subscriber("/robot/joint_angles", Float64MultiArray, self.links_cb)
+        self.link_sub = rospy.Subscriber("/robot/joints_estimate", Float64MultiArray, self.links_cb)
         """self.target_x_sub = rospy.Subscriber("/target/x_position_controller/command", Float64, self.target_x_cb)
         self.target_y_sub = rospy.Subscriber("/target/y_position_controller/command", Float64, self.target_y_cb)
         self.target_z_sub = rospy.Subscriber("/target/z_position_controller/command", Float64, self.target_z_cb)"""

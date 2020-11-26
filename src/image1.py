@@ -29,7 +29,7 @@ class image_converter:
     self.joint2_controller = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=3)
     self.joint3_controller = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=3)
     self.joint4_controller = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=3)
-    self.joint_angles_pub = rospy.Publisher("/robot/joint_angles", Float64MultiArray, queue_size=3)
+    self.joint_angles_pub = rospy.Publisher("/robot/joints_estimate", Float64MultiArray, queue_size=3)
 
     self.gt_angles = np.array([0.0, 0.0, 0.0, 0.0])
     self.gt_angle_sub = rospy.Subscriber("/robot/joint_states", JointState, self.gt_angle_cb)
@@ -52,7 +52,7 @@ class image_converter:
     # self.target_gt_dist_pub = rospy.Publisher("/target/gt_dist", Float64, queue_size=1)
     self._cam2_joint_locations_2d = np.repeat(None, 2 * 4).reshape(4, -1)
     self._cam2_target_location_2d = None
-    self._joint_locations_2d = None
+    self._joint_locations_2d = np.repeat(None, 2 * 4).reshape(4, -1)
     self._target_location_2d = None
     self._cam1_location = np.array([18.0, 0.0, 6.25])
     self._cam2_location = np.array([0.0, -18.0, 6.25])
@@ -139,7 +139,7 @@ class image_converter:
     except CvBridgeError as e:
       print(e)
 
-    self._joint_locations_2d = ivr_vision.detect_joint_locations(self.cv_image1)
+    ivr_vision.update_joint_locations(self.cv_image1, self._joint_locations_2d)
 
     new_target_location = ivr_vision.detect_target(self.cv_image1)
     if new_target_location is not None:
@@ -157,9 +157,9 @@ class image_converter:
       print(e)
 
     time = rospy.get_time()
-#    self._update_joint2(time)
-#    self._update_joint3(time)
-#    self._update_joint4(time)
+    self._update_joint2(time)
+    self._update_joint3(time)
+    self._update_joint4(time)
 
   def _update_joint2(self, t):
       new_state = np.pi / 2.0 * np.sin(np.pi / 15.0 * t)
