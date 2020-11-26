@@ -36,6 +36,8 @@ link2 = Link(theta=np.pi/2, alpha=np.pi/2)
 link3 = Link(a=3.5, alpha=-np.pi/2)
 link4 = Link(a=3)
 robot = Robot(link1, link2, link3, link4)
+
+TASK = "3.1"
 class KinematicsCalculator:
 
     def __init__(self):
@@ -48,12 +50,18 @@ class KinematicsCalculator:
         self.target_pos = np.array([0.0, 0., 0.])
         self.time_previous_step = np.array([0.0])
 
-        #self.link_sub = rospy.Subscriber("/robot/joint_states", JointState, self.links_cb)
-        self.link_sub = rospy.Subscriber("/robot/joint_angles", Float64MultiArray, self.links_cb)
+
+        if TASK == "3.1":
+            self.link_sub = rospy.Subscriber("/robot/joint_states", JointState, self.links_cb)
+        else:
+            self.link_sub = rospy.Subscriber("/robot/joints_estimate", Float64MultiArray, self.links_cb)
+            self.target_sub = rospy.Subscriber("/robot/target_estimate", Float64MultiArray, self.target_cb)
+            print("YEET")
+
+
         """self.target_x_sub = rospy.Subscriber("/target/x_position_controller/command", Float64, self.target_x_cb)
         self.target_y_sub = rospy.Subscriber("/target/y_position_controller/command", Float64, self.target_y_cb)
         self.target_z_sub = rospy.Subscriber("/target/z_position_controller/command", Float64, self.target_z_cb)"""
-        self.target_sub = rospy.Subscriber("/robot/target_location_estimate", Float64MultiArray, self.target_cb)
 
         self.robot_joint1_pub = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=1)
         self.robot_joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=1)
@@ -82,7 +90,10 @@ class KinematicsCalculator:
             robot.link2.angle = angles[1]
             robot.link3.angle = angles[2]
             robot.link4.angle = angles[3]
-            pass
+            end_effector_pos = robot.update_effector_estimate()
+            self.x_pub.publish(end_effector_pos[0])
+            self.y_pub.publish(end_effector_pos[1])
+            self.z_pub.publish(end_effector_pos[2])
         else:
             robot.link2.angle = data.data[0]
             robot.link3.angle = data.data[1]
@@ -101,7 +112,7 @@ class KinematicsCalculator:
         #self.control_closed()
     def target_z_cb(self, data):
         self.target_pos[2] = data.data
-        self.control_closed()
+        robot.update_effector_estimate()
 
     def control_closed(self):
         # P gain
