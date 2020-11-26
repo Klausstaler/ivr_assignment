@@ -157,15 +157,9 @@ class image_converter:
       print(e)
 
     time = rospy.get_time()
-<<<<<<< HEAD
-    # self._update_joint2(time)
-    # self._update_joint3(time)
-    # self._update_joint4(time)
-=======
     #self._update_joint2(time)
     #self._update_joint3(time)
     #self._update_joint4(time)
->>>>>>> 9e91c90e669942040b57e804090c11d105c3dd61
 
   def _update_joint2(self, t):
       new_state = np.pi / 2.0 * np.sin(np.pi / 15.0 * t)
