@@ -10,19 +10,30 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import Float64MultiArray, Float64
 from cv_bridge import CvBridge, CvBridgeError
 from ivr_vision import ivr_vision, camera
+from Link1Estimator import Link1Estimator
+from forward_kinematics import robot
+from sensor_msgs.msg import JointState
+from copy import copy
 
 class image_converter:
 
   # Defines publisher and subscriber
   def __init__(self):
+
     rospy.init_node('image_processing', anonymous=True)
     self.image_pub1 = rospy.Publisher("image_topic1",Image, queue_size = 1)
+    # initialize the bridge between openCV and ROS
+    self.bridge = CvBridge()
     self.image_sub1 = rospy.Subscriber("/camera1/robot/image_raw",Image,self.callback1)
     self.joint1_controller = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=3)
     self.joint2_controller = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=3)
     self.joint3_controller = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=3)
     self.joint4_controller = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=3)
     self.joint_angles_pub = rospy.Publisher("/robot/joint_angles", Float64MultiArray, queue_size=3)
+
+    self.gt_angles = np.array([0.0, 0.0, 0.0, 0.0])
+    self.gt_angle_sub = rospy.Subscriber("/robot/joint_states", JointState, self.gt_angle_cb)
+    self.link1_estimator = Link1Estimator(copy(robot))
     self._target_estimate_pub = rospy.Publisher("/robot/target_location_estimate", Float64MultiArray, queue_size=3)
     # todo: write custom message type to send/receive all 2D joint locations at once
     self.cam2_joint1_location_2d_sub = rospy.Subscriber("/camera2/joint1_location_2d",Float64MultiArray,self.joint_locations_callback1)
@@ -36,8 +47,6 @@ class image_converter:
     self._target_location_2d = None
     self._cam1_location = np.array([18.0, 0.0, 6.25])
     self._cam2_location = np.array([0.0, -18.0, 6.25])
-    # initialize the bridge between openCV and ROS
-    self.bridge = CvBridge()
     self._prev_angles = None
     self._prev_target_location = None
 
@@ -57,6 +66,10 @@ class image_converter:
     self._cam2_joint_locations_2d[3] = np.array(data.data)
     self._joint_locations_callback(data)
 
+
+  def gt_angle_cb(self, data):
+    data = data.position
+    self.gt_angles = np.array([angle for angle in data])
   # receive 2D joint locations from camera2, combine them into 3D
   def _joint_locations_callback(self, data):
     if self._joint_locations_2d is None or None in self._cam2_joint_locations_2d:
@@ -66,12 +79,17 @@ class image_converter:
       self._cam2_joint_locations_2d
     )
     self._joint_angles = ivr_vision.compute_joint_angles(joint_locations_3d)
+    #print("Red location", joint_locations_3d[3, :])
+    robot.link1.angle, robot.link2.angle, robot.link3.angle, robot.link4. angle = self.gt_angles
+    gt_pos = robot.update_effector_estimate()
+    #print(gt_pos, self.gt_angles[1:])
+    self._joint_angles = self.link1_estimator.links_cb(self._joint_angles, joint_locations_3d[3, :])
     message = Float64MultiArray()
     message.data = self._joint_angles
     self.joint_angles_pub.publish(message)
     if ivr_vision.DEBUG and \
       (self._prev_angles is None or np.linalg.norm(self._prev_angles - self._joint_angles) > 0.2):
-      print(f'angles: {self._joint_angles}')
+      #print(f'angles: {self._joint_angles}')
       self._prev_angles = self._joint_angles
 
   def target_location_callback(self, data):
@@ -88,7 +106,7 @@ class image_converter:
     if ivr_vision.DEBUG and \
       (self._prev_target_location is None or \
          np.linalg.norm(self._prev_target_location - self._target_location_3d) > 0.2):
-      print(f'target: {self._target_location_3d}')
+      #print(f'target: {self._target_location_3d}')
       self._prev_target_location = self._target_location_3d
 
   # Recieve data from camera 1, process it, and publish

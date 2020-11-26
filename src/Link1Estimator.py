@@ -2,75 +2,66 @@
 
 import rospy
 import numpy as np
+from std_msgs.msg import Float64, Float64MultiArray
 from sensor_msgs.msg import JointState
 import matplotlib.pyplot as plt
-from forward_kinematics import Link, robot
-
+from forward_kinematics import robot
 
 class Link1Estimator:
 
-    def __init__(self):
-        rospy.init_node('Link1Estimator', anonymous=True)
-        # initialize a subscriber to recieve messages rom a topic named /robot/camera1/image_raw and use callback function to recieve data
-
-        self.link_sub = rospy.Subscriber("/robot/joint_states", JointState, self.links_cb)
-        # self.link_sub = rospy.Subscriber("/robot/joint_angles", Float64MultiArray, self.links_cb)
-
-        self.actual_link1 = 0.0
+    def __init__(self, robot):
+        self.robot = robot
         self.prev_angle = 0.0
+        self.desired_position = np.array([0.0, 0.0, 9.0])
 
-    def links_cb(self, data):
+    def links_cb(self, data, desired_position):
+        self.desired_position = desired_position
         if type(data) == JointState:
             angles = data.position
-            robot.link2.angle = angles[1]
-            robot.link3.angle = angles[2]
-            robot.link4.angle = angles[3]
-            self.actual_link1 = angles[0]
-            if np.linalg.norm(self.actual_link1 - self.prev_angle) > 0.01:
-                robot.link1.angle = self.estimate_link1()
-                print("Link 1 error", abs(robot.link1.angle - self.actual_link1))
-                print("Estimated link", robot.link1.angle, "Actual link", self.actual_link1)
-                self.prev_angle = self.actual_link1
+            self.robot.link2.angle = angles[1]
+            self.robot.link3.angle = angles[2]
+            self.robot.link4.angle = angles[3]
+            self.robot.link1.angle = self.estimate_link1()
         else:
-            robot.angle = data.data[0]
-            robot.angle = data.data[1]
-            robot.angle = data.data[2]
+            self.robot.link2.angle = data.data[0]
+            self.robot.link3.angle = data.data[1]
+            self.robot.link4.angle = data.data[2]
+            self.robot.link1.angle = self.estimate_link1()
+        return np.array([self.robot.link1.angle, self.robot.link2.angle, self.robot.link3.angle, self.robot.link4.angle])
 
     def estimate_link1(self):
-        errors = []
         # idea: sample angles until we find a minimum by using netwon's method
-        prev_angle, error, prev_err, curr_angle = 0.0, 0.5, 0.0, 0.5
-        while error > 0.02:
-            robot.link1.angle = curr_angle
-            pos = robot.update_effector_estimate()  # actual position
+        left_bound, right_bound = -np.pi, np.pi
+        curr_angle, min_err = 0.0, 20
+        all_errors = []
+        pos_d = self.desired_position
+        iterations = 10
+        for i in range(iterations):
+            samples = np.linspace(left_bound, right_bound, num=10)
+            errors = []
+            for curr_angle in samples:
+                self.robot.link1.angle = curr_angle
+                pos = self.robot.update_effector_estimate()  # actual position
 
-            robot.link1.angle = self.actual_link1  # replace pos_d later with vision estimate
-            pos_d = robot.update_effector_estimate()  # desired position
-            error = np.sum((pos - pos_d) ** 2)
-            curr_angle = self.normalize_angle(curr_angle)
+                error = np.linalg.norm(pos - pos_d)
+                curr_angle = self.normalize_angle(curr_angle)
+                errors.append(error)
+                all_errors.append((curr_angle, error))
 
-            angle_diff = (curr_angle - prev_angle)
-            if angle_diff == 0:
-                return 0 # one full revolution
-            error_d = (error - prev_err) / (curr_angle - prev_angle)  # derivative of error with rspct to angle
-            # TODO: when we the angle is large, we might get stuck in local optimum (don't even know why this should exist)
-            # replacing old previous errors
-            print(f"Current angle {curr_angle} previous angle {prev_angle}, error derivative {error_d}")
-            prev_err = error
-            prev_angle = curr_angle
-
-            curr_angle -= error / error_d
-            errors.append(error)
-            print(len(errors))
-            if len(errors) > 60:
-                break
-        """
-        if len(errors) > 30:
-            plt.plot(range(len(errors)), errors)
-            plt.show()
-        """
-        print("estimated b4", curr_angle)
+            best_guess_idx = np.argmin(errors)
+            left_bound = samples[best_guess_idx]
+            right_bound = samples[(best_guess_idx+1) % len(samples)]
+            if left_bound > right_bound:
+                right_bound += 2*np.pi
+            err = np.min(errors)
+            if err < min_err:
+                min_err = err
+                curr_angle = left_bound
+        all_errors.sort()
+        #plt.scatter([x[0] for x in all_errors], [x[1] for x in all_errors])
+        #plt.show()
         curr_angle = self.normalize_angle(curr_angle, offset=np.pi/2)
+        print("ESTIMATED ANGLE", curr_angle)
         return curr_angle
 
     def normalize_angle(self, curr_angle, offset=0.0):
@@ -81,12 +72,3 @@ class Link1Estimator:
         while curr_angle > np.pi or curr_angle < -np.pi:
             curr_angle -= 2 * np.pi if curr_angle > np.pi else -2 * np.pi
         return curr_angle
-
-
-# run the code if the node is called
-if __name__ == '__main__':
-    fk = Link1Estimator()
-    try:
-        rospy.spin()
-    except KeyboardInterrupt:
-        print("Shutting down Link1Estimator")
