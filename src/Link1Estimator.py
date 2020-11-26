@@ -30,39 +30,25 @@ class Link1Estimator:
         return np.array([self.robot.link1.angle, self.robot.link2.angle, self.robot.link3.angle, self.robot.link4.angle])
 
     def estimate_link1(self):
-        # idea: sample angles until we find a minimum by using netwon's method
-        left_bound, right_bound = -np.pi, np.pi
-        curr_angle, min_err = 0.0, 20
+
+        best_angle, min_err = 0.0, 20
         all_errors = []
         pos_d = self.desired_position
-        iterations = 10
-        for i in range(iterations):
-            samples = np.linspace(left_bound, right_bound, num=10)
-            errors = []
-            for curr_angle in samples:
-                self.robot.link1.angle = curr_angle
-                pos = self.robot.update_effector_estimate()  # actual position
-
-                error = np.linalg.norm(pos - pos_d)
-                curr_angle = self.normalize_angle(curr_angle)
-                errors.append(error)
-                all_errors.append((curr_angle, error))
-
-            best_guess_idx = np.argmin(errors)
-            left_bound = samples[best_guess_idx]
-            right_bound = samples[(best_guess_idx+1) % len(samples)]
-            if left_bound > right_bound:
-                right_bound += 2*np.pi
-            err = np.min(errors)
-            if err < min_err:
-                min_err = err
-                curr_angle = left_bound
+        for curr_angle in np.linspace(-np.pi, np.pi, num=180):
+            self.robot.link1.angle = curr_angle
+            pos = self.robot.update_effector_estimate()  # actual position
+            error = np.linalg.norm(pos - pos_d)
+            #curr_angle = self.normalize_angle(curr_angle)
+            all_errors.append((curr_angle, error))
+            if error < min_err:
+                min_err = error
+                best_angle = curr_angle
         all_errors.sort()
-        #plt.scatter([x[0] for x in all_errors], [x[1] for x in all_errors])
-        #plt.show()
-        curr_angle = self.normalize_angle(curr_angle, offset=np.pi/2)
-        print("ESTIMATED ANGLE", curr_angle)
-        return curr_angle
+        plt.scatter([x[0] for x in all_errors], [x[1] for x in all_errors])
+        plt.show()
+        best_angle = self.normalize_angle(best_angle)
+        print("ESTIMATED ANGLE", best_angle)
+        return best_angle
 
     def normalize_angle(self, curr_angle, offset=0.0):
         curr_angle -= offset
