@@ -24,6 +24,14 @@ class image_converter:
     self.image_pub1 = rospy.Publisher("image_topic1",Image, queue_size = 1)
     # initialize the bridge between openCV and ROS
     self.bridge = CvBridge()
+    self._cam2_joint_locations_2d = np.repeat(None, 2 * 4).reshape(4, -1)
+    self._cam2_target_location_2d = None
+    self._joint_locations_2d = np.repeat(None, 2 * 4).reshape(4, -1)
+    self._target_location_2d = None
+    self._cam1_location = np.array([18.0, 0.0, 6.25])
+    self._cam2_location = np.array([0.0, -18.0, 6.25])
+    self._prev_angles = None
+    self._prev_target_location = None
     self.image_sub1 = rospy.Subscriber("/camera1/robot/image_raw",Image,self.callback1)
     self.joint1_controller = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=3)
     self.joint2_controller = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=3)
@@ -50,14 +58,6 @@ class image_converter:
     # self.target_z_gt_sub = rospy.Subscriber("/target/z_position_controller/command", Float64, self.target_z_gt_cb)
     # self.target_gt_3d = np.array([0.0, 0.0, 0.0])
     # self.target_gt_dist_pub = rospy.Publisher("/target/gt_dist", Float64, queue_size=1)
-    self._cam2_joint_locations_2d = np.repeat(None, 2 * 4).reshape(4, -1)
-    self._cam2_target_location_2d = None
-    self._joint_locations_2d = np.repeat(None, 2 * 4).reshape(4, -1)
-    self._target_location_2d = None
-    self._cam1_location = np.array([18.0, 0.0, 6.25])
-    self._cam2_location = np.array([0.0, -18.0, 6.25])
-    self._prev_angles = None
-    self._prev_target_location = None
 
   # def target_x_gt_cb(self, data):
   #   self.target_gt_3d[0] = data.data
@@ -157,9 +157,9 @@ class image_converter:
       print(e)
 
     time = rospy.get_time()
-    self._update_joint2(time)
-    self._update_joint3(time)
-    self._update_joint4(time)
+    #self._update_joint2(time)
+    #self._update_joint3(time)
+    #self._update_joint4(time)
 
   def _update_joint2(self, t):
       new_state = np.pi / 2.0 * np.sin(np.pi / 15.0 * t)
