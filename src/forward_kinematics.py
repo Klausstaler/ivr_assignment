@@ -3,12 +3,39 @@
 import rospy
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-from std_msgs.msg import Float64
-import time
-
+from std_msgs.msg import Float64, Float64MultiArray
+from sensor_msgs.msg import JointState
+from jacobian_symp import calculate_jacobian
 class Link:
     def __init__(self, theta=0.0, a=0.0, d=0.0, alpha=.0):
         self.angle, self.theta, self.a, self.d, self.alpha = 0, theta, a, d, alpha
+
+    def calc_trans(self):
+        x_rot, x_trans, z_trans, z_rot = np.eye(4), np.eye(4), np.eye(4), np.eye(4)
+        x_rot[:-1, :-1] = R.from_euler("xyz", [self.alpha, 0, 0]).as_matrix()
+        x_trans[0, -1] = self.a
+        z_rot[:-1, :-1] = R.from_euler("xyz", [0, 0, self.theta + self.angle]).as_matrix()
+        z_trans[-2, -1] = self.d
+
+        return z_rot @ z_trans @ x_trans @ x_rot
+class Robot:
+    def __init__(self, link1, link2, link3, link4):
+        self.link1, self.link2, self.link3, self.link4 = link1, link2, link3, link4
+        self.jac = calculate_jacobian(self)
+
+    def update_effector_estimate(self):
+        link1_mat = self.link1.calc_trans()
+        link2_mat = self.link2.calc_trans()
+        link3_mat = self.link3.calc_trans()
+        link4_mat = self.link4.calc_trans()
+        joint_to_pos = (link1_mat @ link2_mat @ link3_mat @ link4_mat)[:-1, -1]
+        return joint_to_pos
+
+link1 = Link(theta=np.pi/2, d=2.5, alpha=np.pi/2)
+link2 = Link(theta=np.pi/2, alpha=np.pi/2)
+link3 = Link(a=3.5, alpha=-np.pi/2)
+link4 = Link(a=3)
+robot = Robot(link1, link2, link3, link4)
 class KinematicsCalculator:
 
     def __init__(self):
@@ -18,39 +45,54 @@ class KinematicsCalculator:
         self.y_pub = rospy.Publisher("forward_kinematics/y", Float64, queue_size=1)
         self.z_pub = rospy.Publisher("forward_kinematics/z", Float64, queue_size=1)
         # initialize a subscriber to recieve messages rom a topic named /robot/camera1/image_raw and use callback function to recieve data
-        self.link1, self.link2, self.link3, self.link4 = Link(theta=np.pi/2, d=2.5, alpha=np.pi/2), \
-                                                         Link(theta=np.pi/2, alpha=np.pi/2), \
-                                                         Link(a=3.5, alpha=-np.pi/2), \
-                                                         Link(a=3)
-        self.target_pos = np.array([0, 0, 0])
-        self.time_previous_step = rospy.get_time()
-        self.link1_sub = rospy.Subscriber("/robot/joint1_position_controller/command", Float64, self.link1_cb)
-        self.link2_sub = rospy.Subscriber("/robot/joint2_position_controller/command", Float64, self.link2_cb)
-        self.link3_sub = rospy.Subscriber("/robot/joint3_position_controller/command", Float64, self.link3_cb)
-        self.link4_sub = rospy.Subscriber("/robot/joint4_position_controller/command", Float64, self.link4_cb)
-        self.target_x_sub =  rospy.Subscriber("/target/x_position_controller/command", Float64, self.target_x_cb)
-        self.target_y_sub = rospy.Subscriber("/target/y_position_controller/command", Float64, self.target_y_cb)
-        self.target_z_sub = rospy.Subscriber("/target/z_position_controller/command", Float64, self.target_z_cb)
+        self.target_pos = np.array([0.0, 0., 0.])
+        self.time_previous_step = np.array([0.0])
 
-        #self.robot_joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=10)
-        #self.robot_joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=10)
-        #self.robot_joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=10)
+        #self.link_sub = rospy.Subscriber("/robot/joint_states", JointState, self.links_cb)
+        self.link_sub = rospy.Subscriber("/robot/joint_angles", Float64MultiArray, self.links_cb)
+        """self.target_x_sub = rospy.Subscriber("/target/x_position_controller/command", Float64, self.target_x_cb)
+        self.target_y_sub = rospy.Subscriber("/target/y_position_controller/command", Float64, self.target_y_cb)
+        self.target_z_sub = rospy.Subscriber("/target/z_position_controller/command", Float64, self.target_z_cb)"""
+        self.target_sub = rospy.Subscriber("/robot/target_location_estimate", Float64MultiArray, self.target_cb)
+
+        self.robot_joint1_pub = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=1)
+        self.robot_joint2_pub = rospy.Publisher("/robot/joint2_position_controller/command", Float64, queue_size=1)
+        self.robot_joint3_pub = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=1)
+        self.robot_joint4_pub = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=1)
         # initialize error and derivative of error for trajectory tracking
         self.error = np.array([0.0, 0.0, 0.0], dtype='float64')
         self.error_d = np.array([0.0, 0.0, 0.0], dtype='float64')
 
     def link1_cb(self, data):
-        self.link1.angle = data.data
-        self.update_effector_estimate()
+        robot.link1.angle = data.data
+        #self.update_effector_estimate()
     def link2_cb(self, data):
-        self.link2.angle = data.data
-        self.update_effector_estimate()
+        robot.link2.angle = data.data
+        #self.update_effector_estimate()
     def link3_cb(self, data):
-        self.link3.angle = data.data
-        self.update_effector_estimate()
+        robot.link3.angle = data.data
+        #self.update_effector_estimate()
     def link4_cb(self, data):
-        self.link4.angle = data.data
-        self.update_effector_estimate()
+        robot.link4.angle = data.data
+        #self.update_effector_estimate()
+    def links_cb(self, data):
+        if type(data) == JointState:
+            angles = data.position
+            robot.link1.angle = angles[0]
+            robot.link2.angle = angles[1]
+            robot.link3.angle = angles[2]
+            robot.link4.angle = angles[3]
+            pass
+        else:
+            robot.link2.angle = data.data[0]
+            robot.link3.angle = data.data[1]
+            robot.link4.angle = data.data[2]
+
+
+    def target_cb(self, data):
+        data = data.data
+        self.target_pos[0], self.target_pos[1], self.target_pos[2] = data[0], data[1], data[2]
+        self.control_closed()
     def target_x_cb(self, data):
         self.target_pos[0] = data.data
         #self.control_closed()
@@ -59,116 +101,69 @@ class KinematicsCalculator:
         #self.control_closed()
     def target_z_cb(self, data):
         self.target_pos[2] = data.data
-        #self.control_closed()
-
-    def update_effector_estimate(self):
-        link1_mat = self.calc_trans(self.link1.angle + self.link1.theta, d=self.link1.d, alpha=self.link2.alpha)
-        link2_mat = self.calc_trans(self.link2.angle + self.link2.theta, alpha=self.link2.alpha)
-        link3_mat = self.calc_trans(self.link3.angle, a=self.link3.a, alpha=self.link3.alpha)
-        link4_mat = self.calc_trans(self.link4.angle, a=self.link4.a)
-        joint_to_pos = (link1_mat@link2_mat@link3_mat@link4_mat)[:-1, -1]
-        self.x_pub.publish(joint_to_pos[0])
-        self.y_pub.publish(joint_to_pos[1])
-        self.z_pub.publish(joint_to_pos[2])
-        return joint_to_pos
-
-    def calc_trans(self, theta=0.0, d=0.0, a=0.0, alpha=0.0):
-        x_rot, x_trans, z_trans, z_rot = np.eye(4), np.eye(4), np.eye(4), np.eye(4)
-        x_rot[:-1, :-1] = R.from_euler("xyz", [alpha, 0, 0]).as_matrix()
-        x_trans[0, -1] = a
-        z_rot[:-1, :-1] = R.from_euler("xyz", [0, 0, theta]).as_matrix()
-        z_trans[-2, -1] = d
-
-        return z_rot @ z_trans @ x_trans @ x_rot
+        self.control_closed()
 
     def control_closed(self):
         # P gain
-        K_p = np.array([[10, 0, 0], [0, 10, 0], [0, 0, 10]])
+        p, d = 10, 0.4
+        K_p = np.array([[p, 0.0, 0.0], [0.0, p, 0.0], [0.0, 0.0, p]])
         # D gain
-        K_d = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]])
+        K_d = np.array([[d, 0, 0], [0, d, 0], [0, 0, d]])
+        #K_d = np.zeros(shape=(3,3))
+        damper = 1.3
         # estimate time step
         cur_time = np.array([rospy.get_time()])
         dt = cur_time - self.time_previous_step
-        if dt < 0.1:
+
+
+        if dt == 0:
             return
-        self.time_previous_step = cur_time
+
         # robot end-effector position
-        pos = self.update_effector_estimate()
+        pos = robot.update_effector_estimate()
         # desired position
         pos_d = self.target_pos
         # estimate derivative of error
         self.error_d = ((pos_d - pos) - self.error) / dt
         # estimate error
         self.error = pos_d - pos
-        q = np.array([self.link1.angle, self.link2.angle, self.link3.angle, self.link4.angle])
-        J_inv = np.linalg.pinv(self.calc_jacobian())  # calculating the pseudo inverse of Jacobian
-        dq_d = np.dot(J_inv, (np.dot(K_d, self.error_d.transpose()) + np.dot(K_p,
-                                                                             self.error.transpose())))  # control input (angular velocity of joints)
-        q_d = q + (dt * dq_d)  # control input (angular position of joints)
+        if self.time_previous_step == 0:
+            self.time_previous_step = cur_time
+            return
+        self.time_previous_step = cur_time
+
+        q = np.array([robot.link1.angle, robot.link2.angle, robot.link3.angle, robot.link4.angle]) # by removing link 1 we fixed it
+        #q = q[1:]
+        q[0] = 0
+        jacobian = robot.jac(0, q[1], q[2], q[3])
+        jacobian[:, 0] = 0
+        #jacobian = self.calc_jacobian()
+        J_inv = jacobian.T @ np.linalg.inv(jacobian@jacobian.T + np.eye(jacobian.shape[0])*damper)
+
+        #J_inv = np.linalg.pinv(jacobian)  # calculating the pseudo inverse of Jacobian
+        #print(K_d.shape)
+        err = (K_d@(self.error_d.reshape(3,1)) + K_p@(self.error.reshape(3,1)))
+        dq_d = J_inv@(K_d@(self.error_d.reshape(3,1)) + K_p@(self.error.reshape(3,1)))  # control input (angular velocity of joints)
+        q_d = q + (dt * dq_d.flatten())  # control input (angular position of joints)
+
+        for i, num in enumerate(q_d):
+            #while q_d[i] > np.pi:
+            #    q_d[i] -= 2 * np.pi
+            #while q_d[i] < -np.pi:
+            #    q_d[i] += 2 * np.pi
+            q_d[i] = min(q_d[i], np.pi / 2)
+            q_d[i] = max(q_d[i], -np.pi / 2)
+
+
         if not np.any(np.isnan(q_d)):
-            #print(q_d)
+            print(q_d)
+            print("Desired position", pos_d)
+            print("Current position", pos)
             self.robot_joint2_pub.publish(q_d[1])
             self.robot_joint3_pub.publish(q_d[2])
             self.robot_joint4_pub.publish(q_d[3])
+            #self.robot_joint4_pub.publish(q_d[2])
         return q_d
-
-    def calc_jacobian(self):
-        jacobian = np.zeros((3,4))
-
-        # this is gonna look very nasty
-
-        # angles of first joint
-        sin_t1, cos_t1 = self.getsin_cos(self.link1.theta + self.link1.angle)
-        sin_a1, cos_a1 = self.getsin_cos(self.link1.alpha)
-        # second joint
-        sin_t2, cos_t2 = self.getsin_cos(self.link2.angle + self.link2.theta)
-        sin_a2, cos_a2 = self.getsin_cos(self.link2.alpha)
-        # third joint
-        sin_t3, cos_t3 = self.getsin_cos(self.link3.angle + self.link3.theta)
-        sin_a3, cos_a3 = self.getsin_cos(self.link3.alpha)
-        # fourth joint
-        sin_t4, cos_t4 = self.getsin_cos(self.link4.angle + self.link4.theta)
-
-        # now we get the derivate of x with respect to all angles
-
-        # x/dt1 is 0
-        # so let's go for x/dt2
-        jacobian[0, 1] = self.link1.d*(sin_a2*cos_t2*(cos_t3*cos_t4-sin_t3*sin_t4) -
-                        sin_a2*sin_t2*(sin_t4*cos_a3*cos_t3 + cos_t4*cos_a3*sin_t3))
-        # now x/dt3
-        jacobian[0, 2] = -self.link3.a*sin_t3*cos_t4 - self.link3.a*sin_t4*cos_t3 + \
-                         self.link1.d*((-sin_t3*cos_t4 - sin_t4*cos_t3)*sin_a2*sin_t2 +
-                         (sin_a3*sin_t3*sin_t4 - sin_a3*cos_t3*cos_t4)*cos_a2 + (-sin_t3*sin_t4*cos_a3 +
-                         cos_a3*cos_t3*cos_t4)*sin_a2*cos_t2)
-        # now x/dt4
-        jacobian[0, 3] = -self.link3.a*sin_t3*cos_t4 - self.link3.a*sin_t4*cos_t3 - \
-                         self.link4.a*sin_t4 + self.link1.d*((-sin_t3*cos_t4 - sin_t4*cos_t3)*sin_a2*sin_t2 +
-                         (sin_a3*sin_t3*sin_t4 - sin_a3*cos_t3*cos_t4)*cos_a2 + (-sin_t3*sin_t4*cos_a3 +
-                         cos_a3*cos_t3*cos_t4)*sin_a2*cos_t2)
-        # now y with respect to all angles
-        # y/dt1 is zero again
-        # so we start with y/dt2
-        jacobian[1, 1] = self.link1.d*((sin_t3*cos_t4 + sin_t4*cos_t3)*sin_a2*cos_t2 -
-                         (cos_a3*sin_t3*sin_t4 - cos_a3*cos_t3*cos_t4)*sin_a2*sin_t2)
-        # now y/dt3
-        jacobian[1, 2] = -self.link3.a*sin_t3*sin_t4 + self.link3.a*cos_t4*cos_t3 + \
-                         self.link1.d*((-sin_t3*sin_t4 + cos_t4*cos_t3)*sin_a2*sin_t2 +
-                         (-sin_a3*sin_t3*cos_t4 - sin_a3*cos_t3*sin_t4)*cos_a2 + (sin_t3*cos_t4*cos_a3 +
-                         cos_a3*cos_t3*sin_t4)*sin_a2*cos_t2)
-        # now y/dt4
-        jacobian[1, 3] = -self.link3.a*sin_t3*sin_t4 + self.link3.a*cos_t4*cos_t3 + self.link4.a*cos_t4 \
-                         + self.link1.d*((-sin_t3*sin_t4 + cos_t4*cos_t3)*sin_a2*sin_t2 +
-                         (-sin_a3*sin_t3*cos_t4 - sin_a3*cos_t3*sin_t4)*cos_a2 + (sin_t3*cos_t4*cos_a3 +
-                         cos_a3*cos_t3*sin_t4)*sin_a2*cos_t2)
-
-        # now z with respect to all angles
-        # again z/dt1 is zero
-        # now z/dt2
-        jacobian[2, 1] = self.link1.d*sin_a2*sin_a3*sin_t2
-        # rest is zero
-        return jacobian
-    def getsin_cos(self, angle):
-        return np.sin(angle), np.cos(angle)
 
     def invert_affine_mat(self, mat):
         inverse = np.eye(4)
