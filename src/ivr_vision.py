@@ -6,7 +6,7 @@ class ivr_vision:
     _blob_kernel_size = 5
     _target_template = cv2.imread(
         os.path.dirname(os.path.realpath(__file__)) + '/target_template.png',
-        cv2.IMREAD_COLOR
+        cv2.IMREAD_GRAYSCALE
     )
     _direction_correction = np.array([1.0, -1.0])  # Y-coordinates are flipped in cam feeds
     DEBUG = True
@@ -14,7 +14,7 @@ class ivr_vision:
     BLUE_RANGE = [(100, 0, 0), (255, 0, 0)]
     GREEN_RANGE = [(0, 100, 0), (0, 255, 0)]
     RED_RANGE = [(0, 0, 100), (0, 0, 255)]
-    ORANGE_RANGE = [(0, 51, 102), (0, 127, 255)]
+    ORANGE_RANGE = [(10, 0, 0), (20, 255, 255)]  # NB: in HSV
 
     @staticmethod
     def debug_pose(joints):
@@ -117,23 +117,30 @@ class ivr_vision:
 
     @staticmethod
     def detect_target(image):
-        yellow = ivr_vision.detect_blob(image, ivr_vision.YELLOW_RANGE)
-        blue   = ivr_vision.detect_blob(image, ivr_vision.BLUE_RANGE)
-        p2m = ivr_vision._pixel2meter(yellow, blue, 2.5)
+        # detection of target
         template_size = 26.0
-        thresholded = cv2.inRange(image, ivr_vision.ORANGE_RANGE[0], ivr_vision.ORANGE_RANGE[1])
+        img_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        thresholded = cv2.inRange(img_hsv, ivr_vision.ORANGE_RANGE[0], ivr_vision.ORANGE_RANGE[1])
         total = np.sum(np.sum(thresholded))
         if total == 0.0:
             return None  # target is occluded by something else
-        match = cv2.matchTemplate(image, ivr_vision._target_template, 1)
+        match = cv2.matchTemplate(thresholded, ivr_vision._target_template, 1)
         best_val, _, best_position, _ = cv2.minMaxLoc(match)
-        if best_val > 0.11:
+        if ivr_vision.DEBUG:
+            im_debug=cv2.imshow('debug', thresholded)
+        print(best_val)
+        if best_val > 1:
             return None  # target is occluded by something else
+        # find center
         cx = best_position[0] + template_size / 2.0
         cy = best_position[1] + template_size / 2.0
         target = np.array([int(cx), int(cy)])
         if ivr_vision.DEBUG:
             cv2.circle(image, tuple(target), 5, ivr_vision.invert(ivr_vision.ORANGE_RANGE[1]), -1)
+        # scaling
+        yellow = ivr_vision.detect_blob(image, ivr_vision.YELLOW_RANGE)
+        blue   = ivr_vision.detect_blob(image, ivr_vision.BLUE_RANGE)
+        p2m = ivr_vision._pixel2meter(yellow, blue, 2.5)
         return np.multiply(p2m * (target - yellow), ivr_vision._direction_correction)
 
     @staticmethod
