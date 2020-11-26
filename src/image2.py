@@ -17,6 +17,9 @@ class image_converter:
   # Defines publisher and subscriber
   def __init__(self):
     rospy.init_node('image_processing', anonymous=True)
+    self._joint_locations = np.repeat(None, 4 * 2).reshape(4, -1)
+    self._target_location = None
+    self.bridge = CvBridge()
     self.image_pub2 = rospy.Publisher("image_topic2",Image, queue_size = 1)
     self.image_sub2 = rospy.Subscriber("/camera2/robot/image_raw",Image,self.callback2)
     self.joint1_location_2d_pub = rospy.Publisher("/camera2/joint1_location_2d",Float64MultiArray, queue_size = 1)
@@ -24,9 +27,6 @@ class image_converter:
     self.joint3_location_2d_pub = rospy.Publisher("/camera2/joint3_location_2d",Float64MultiArray, queue_size = 1)
     self.joint4_location_2d_pub = rospy.Publisher("/camera2/joint4_location_2d",Float64MultiArray, queue_size = 1)
     self.target_location_2d_pub = rospy.Publisher("/camera2/target_location_2d", Float64MultiArray,queue_size=1)
-    self._joint_locations = np.repeat(None, 4 * 2).reshape(4, -1)
-    self._target_location = None
-    self.bridge = CvBridge()
 
 
   # Recieve data, process it, and publish

@@ -37,7 +37,7 @@ link3 = Link(a=3.5, alpha=-np.pi/2)
 link4 = Link(a=3)
 robot = Robot(link1, link2, link3, link4)
 
-TASK = "3.2"
+TASK = "3.1"
 class KinematicsCalculator:
 
     def __init__(self):
