@@ -9,7 +9,7 @@ class ivr_vision:
         cv2.IMREAD_GRAYSCALE
     )
     _direction_correction = np.array([1.0, -1.0])  # Y-coordinates are flipped in cam feeds
-    DEBUG = True
+    DEBUG = False
     YELLOW_RANGE = [(0, 100, 100), (0, 255, 255)]
     BLUE_RANGE = [(100, 0, 0), (255, 0, 0)]
     GREEN_RANGE = [(0, 100, 0), (0, 255, 0)]
@@ -75,7 +75,7 @@ class ivr_vision:
         return coords
 
     @staticmethod
-    def detect_joint_locations(image):
+    def update_joint_locations(image, locations):
         """detects joint locations in meters in orthogonal plane"""
         yellow = ivr_vision.detect_blob(image, ivr_vision.YELLOW_RANGE)
         blue   = ivr_vision.detect_blob(image, ivr_vision.BLUE_RANGE)
@@ -86,16 +86,22 @@ class ivr_vision:
         if ivr_vision.DEBUG:
             # draw dots in the centers to check that this works
             r = 5
-            cv2.circle(image, tuple(yellow), r, ivr_vision.invert(ivr_vision.YELLOW_RANGE[1]), -1)
-            cv2.circle(image, tuple(blue), r, ivr_vision.invert(ivr_vision.BLUE_RANGE[1]), -1)
-            cv2.circle(image, tuple(green), r, ivr_vision.invert(ivr_vision.GREEN_RANGE[1]), -1)
-            cv2.circle(image, tuple(red), r, ivr_vision.invert(ivr_vision.RED_RANGE[1]), -1)
-        return np.array([
-            np.multiply(p2m * yellow - center, ivr_vision._direction_correction),
-            np.multiply(p2m * blue - center, ivr_vision._direction_correction),
-            np.multiply(p2m * green - center, ivr_vision._direction_correction),
-            np.multiply(p2m * red - center, ivr_vision._direction_correction)
-        ])
+            try:
+                cv2.circle(image, tuple(yellow), r, ivr_vision.invert(ivr_vision.YELLOW_RANGE[1]), -1)
+                cv2.circle(image, tuple(blue), r, ivr_vision.invert(ivr_vision.BLUE_RANGE[1]), -1)
+                cv2.circle(image, tuple(green), r, ivr_vision.invert(ivr_vision.GREEN_RANGE[1]), -1)
+                cv2.circle(image, tuple(red), r, ivr_vision.invert(ivr_vision.RED_RANGE[1]), -1)
+            except e:
+                print("could not display debug circles")
+        # update any new locations we found
+        if yellow is not None:
+            locations[0] = np.multiply(p2m * yellow - center, ivr_vision._direction_correction)
+        if blue is not None:
+            locations[1] = np.multiply(p2m * blue - center, ivr_vision._direction_correction)
+        if green is not None:
+            locations[2] = np.multiply(p2m * green - center, ivr_vision._direction_correction)
+        if red is not None:
+            locations[3] = np.multiply(p2m * red - center, ivr_vision._direction_correction)
 
     @staticmethod
     def _pixel2meter(joint1, joint2, real_dist):
@@ -111,6 +117,8 @@ class ivr_vision:
             iterations=3
         )
         M = cv2.moments(mask)
+        if M['m00'] == 0.0:
+            return None  # occlusion
         cx = int(M['m10'] / M['m00'])
         cy = int(M['m01'] / M['m00'])
         return np.array([cx, cy])

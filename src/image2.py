@@ -24,6 +24,7 @@ class image_converter:
     self.joint3_location_2d_pub = rospy.Publisher("/camera2/joint3_location_2d",Float64MultiArray, queue_size = 1)
     self.joint4_location_2d_pub = rospy.Publisher("/camera2/joint4_location_2d",Float64MultiArray, queue_size = 1)
     self.target_location_2d_pub = rospy.Publisher("/camera2/target_location_2d", Float64MultiArray,queue_size=1)
+    self._joint_locations = np.repeat(None, 4 * 2).reshape(4, -1)
     self._target_location = None
     self.bridge = CvBridge()
 
@@ -36,7 +37,7 @@ class image_converter:
     except CvBridgeError as e:
       print(e)
 
-    self._joint_locations = ivr_vision.detect_joint_locations(self.cv_image2)
+    ivr_vision.update_joint_locations(self.cv_image2, self._joint_locations)
     self.joint1_location_2d_pub.publish(Float64MultiArray(data=self._joint_locations[0]))
     self.joint2_location_2d_pub.publish(Float64MultiArray(data=self._joint_locations[1]))
     self.joint3_location_2d_pub.publish(Float64MultiArray(data=self._joint_locations[2]))
