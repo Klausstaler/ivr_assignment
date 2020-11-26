@@ -96,7 +96,7 @@ class KinematicsCalculator:
         self.z_pub = rospy.Publisher("forward_kinematics/z", Float64, queue_size=1)
         # initialize a subscriber to recieve messages rom a topic named /robot/camera1/image_raw and use callback function to recieve data
         self.target_pos = np.array([0.0, 0., 0.])
-        self.time_previous_step = 0.0
+        self.time_previous_step = np.array([0.0])
 
         self.link_sub = rospy.Subscriber("/robot/joint_states", JointState, self.links_cb)
         #self.link_sub = rospy.Subscriber("/robot/joint_angles", Float64MultiArray, self.links_cb)
@@ -116,29 +116,29 @@ class KinematicsCalculator:
         self.error_d = np.array([0.0, 0.0, 0.0], dtype='float64')
 
     def link1_cb(self, data):
-        robot.angle = data.data
+        robot.link1.angle = data.data
         #self.update_effector_estimate()
     def link2_cb(self, data):
-        robot.angle = data.data
+        robot.link2.angle = data.data
         #self.update_effector_estimate()
     def link3_cb(self, data):
-        robot.angle = data.data
+        robot.link3.angle = data.data
         #self.update_effector_estimate()
     def link4_cb(self, data):
-        robot.angle = data.data
+        robot.link4.angle = data.data
         #self.update_effector_estimate()
     def links_cb(self, data):
         if type(data) == JointState:
             angles = data.position
-            robot.angle = angles[0]
-            robot.angle = angles[1]
-            robot.angle = angles[2]
-            robot.angle = angles[3]
+            robot.link1.angle = angles[0]
+            robot.link2.angle = angles[1]
+            robot.link3.angle = angles[2]
+            robot.link4.angle = angles[3]
             pass
         else:
-            robot.angle = data.data[0]
-            robot.angle = data.data[1]
-            robot.angle = data.data[2]
+            robot.link2.angle = data.data[0]
+            robot.link3.angle = data.data[1]
+            robot.link4.angle = data.data[2]
 
     def target_x_cb(self, data):
         self.target_pos[0] = data.data
@@ -152,13 +152,14 @@ class KinematicsCalculator:
 
     def control_closed(self):
         # P gain
-        K_p = np.array([[.5, 0.0, 0.0], [0.0, .5, 0.0], [0.0, 0.0, .5]])
+        K_p = np.array([[10, 0.0, 0.0], [0.0, 10, 0.0], [0.0, 0.0, 10]])
         # D gain
         K_d = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]])
         #K_d = np.zeros(shape=(3,3))
         # estimate time step
         cur_time = np.array([rospy.get_time()])
         dt = cur_time - self.time_previous_step
+
 
         if dt == 0:
             return
@@ -184,7 +185,7 @@ class KinematicsCalculator:
 
 
         J_inv = np.linalg.pinv(jacobian)  # calculating the pseudo inverse of Jacobian
-        dq_d = J_inv.dot(K_d.dot(self.error_d) + K_p.dot(self.error))  # control input (angular velocity of joints)
+        dq_d = J_inv.dot(K_d.dot(self.error_d.transpose()) + K_p.dot(self.error.transpose()))  # control input (angular velocity of joints)
         q_d = q + (dt * dq_d)  # control input (angular position of joints)
 
 
@@ -193,8 +194,8 @@ class KinematicsCalculator:
                 q_d[i] -= 2 * np.pi
             while q_d[i] < -np.pi:
                 q_d[i] += 2 * np.pi
-        #q_d[3] = min(q_d[0], np.pi / 2)
-        #q_d[3] = max(q_d[0], -np.pi / 2)
+        #q_d[0] = min(q_d[0], np.pi / 2)
+        #q_d[0] = max(q_d[0], -np.pi / 2)
         q_d[1] = min(q_d[1], np.pi/2)
         q_d[1] = max(q_d[1],-np.pi/2)
         q_d[2] = min(q_d[2], np.pi / 2)
@@ -204,10 +205,11 @@ class KinematicsCalculator:
         if not np.any(np.isnan(q_d)):
             print(q_d)
             print("Desired position", pos_d)
+            print("Current position", pos)
             self.robot_joint1_pub.publish(q_d[0])
             self.robot_joint2_pub.publish(q_d[1])
             self.robot_joint3_pub.publish(q_d[2])
-            #self.robot_joint4_pub.publish(q_d[3])
+            #self.robot_joint4_pub.publish(q_d[2])
         return q_d
 
     def invert_affine_mat(self, mat):
