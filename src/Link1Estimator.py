@@ -38,29 +38,43 @@ class Link1Estimator:
 
     def estimate_link1(self):
         errors = []
-        # idea: sample angles until we find a minimum
+        # idea: sample angles until we find a minimum by using netwon's method
         prev_angle, error, prev_err, curr_angle = 0.0, 0.5, 0.0, 0.5
         while error > 0.02:
             robot.link1.angle = curr_angle
             pos = robot.update_effector_estimate()  # actual position
-            print("Estimated postion", pos, robot.link1.angle, curr_angle)
 
             robot.link1.angle = self.actual_link1  # replace pos_d later with vision estimate
             pos_d = robot.update_effector_estimate()  # desired position
-            print("Actual position", pos_d)
             error = np.sum((pos - pos_d) ** 2)
 
+            angle_diff = (curr_angle - prev_angle)
+            if angle_diff == 0:
+                return 0 # one full revolution
             error_d = (error - prev_err) / (curr_angle - prev_angle)  # derivative of error with rspct to angle
-            
+            # TODO: when we the angle is large, we might get stuck in local optimum (don't even know why this should exist)
             # replacing old previous errors
             prev_err = error
             prev_angle = curr_angle
 
             curr_angle -= error / error_d
             errors.append(error)
+            print(len(errors))
+            if len(errors) > 30:
+                break
+        #if len(errors) > 30:
+        #    plt.plot(range(len(errors)), errors)
+        #    plt.show()
+        print("estimated b4", curr_angle)
+        ### I have no clue if this is correct
+        curr_angle -= np.pi # do this as we want to center around 0
+        multiple = curr_angle // (2*np.pi)
+        print(multiple)
+        curr_angle = curr_angle - 2*np.pi*multiple
+        curr_angle += np.pi
+        ### I am dumb
         while curr_angle > np.pi or curr_angle < -np.pi:
             curr_angle -= 2 * np.pi if curr_angle > np.pi else -2 * np.pi
-
         return curr_angle
 
 
