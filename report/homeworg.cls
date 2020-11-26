@@ -66,7 +66,7 @@
     \popQED\endtrivlist\@endpefalse%
 }
 
-\providecommand{\exercisename}{Exercise}
+\providecommand{\exercisename}{Task}
 \newaliascnt{exercise}{section}
 \newcommand*{\exercise}{\@ifstar{%
     \@exercise%
@@ -79,19 +79,12 @@
     \stepcounter{section}% manually increase section counter, since ^
     \begingroup\edef\x{\endgroup% expand \thesection for \nameref: https://tex.stackexchange.com/a/569405
         \noexpand\section[\exercisename{} \thesection]{%
-            \exercisename~\thesection%
-            \ifnum#1>-1\enskip(#1 pt\ifnum#1=1\else s\fi)\fi%
+            \exercisename~\thesection \ -- #1
         }%
     }\x%
     \addtocounter{section}{-1}\refstepcounter{exercise}% associate correct name with label: https://tex.stackexchange.com/a/171436
     \setcounter{secnumdepth}{3}%
 }
-
-\newcommand*{\homeworgauthor}{\texorpdfstring{% https://tex.stackexchange.com/a/10557
-    G.\,P\kern-,05em.\,S.~Pennings% TODO: why , instead of .
-}{%
-    G.P.S. Pennings%
-}}
 
 \newcommand*{\N}{\mathbb N}
 \newcommand*{\Z}{\mathbb Z}
