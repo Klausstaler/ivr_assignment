@@ -9,7 +9,7 @@ class ivr_vision:
         cv2.IMREAD_GRAYSCALE
     )
     _direction_correction = np.array([1.0, -1.0])  # Y-coordinates are flipped in cam feeds
-    DEBUG = False
+    DEBUG = True
     YELLOW_RANGE = [(0, 100, 100), (0, 255, 255)]
     BLUE_RANGE = [(100, 0, 0), (255, 0, 0)]
     GREEN_RANGE = [(0, 100, 0), (0, 255, 0)]
@@ -53,7 +53,7 @@ class ivr_vision:
         joint_angles[2] = np.arctan2(G2R[2], G2R[1]) - joint_angles[0] - np.pi / 2.0
 
         if ivr_vision.DEBUG:
-            # ivr_vision.debug_pose(joint_locs)
+            #ivr_vision.debug_pose(joint_locs)
             # ivr_vision.debug_angles(joint_angles)
             pass
         return joint_angles
