@@ -33,6 +33,7 @@ class Link1Estimator:
 
         best_angle, min_err = 0.0, 20
         all_errors = []
+        all_errors2 = []
         pos_d = self.desired_position
         for curr_angle in np.linspace(-np.pi, np.pi, num=180):
             self.robot.link1.angle = curr_angle
@@ -40,12 +41,14 @@ class Link1Estimator:
             error = np.linalg.norm(pos - pos_d)
             #curr_angle = self.normalize_angle(curr_angle)
             all_errors.append((curr_angle, error))
-            if error < min_err:
-                min_err = error
-                best_angle = curr_angle
+            all_errors2.append((error, curr_angle))
+        all_errors2.sort()
+        best_angle = sum([angle_err[1] + np.pi for angle_err in all_errors2[:3]]) # take average
+        best_angle = best_angle / 3 - np.pi
+
         all_errors.sort()
-        plt.scatter([x[0] for x in all_errors], [x[1] for x in all_errors])
-        plt.show()
+        #plt.scatter([x[0] for x in all_errors], [x[1] for x in all_errors])
+        #plt.show()
         best_angle = self.normalize_angle(best_angle)
         print("ESTIMATED ANGLE", best_angle)
         return best_angle

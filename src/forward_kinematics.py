@@ -152,9 +152,10 @@ class KinematicsCalculator:
 
     def control_closed(self):
         # P gain
-        K_p = np.array([[10, 0.0, 0.0], [0.0, 10, 0.0], [0.0, 0.0, 10]])
+        p, d = 1, 0.2
+        K_p = np.array([[p, 0.0, 0.0], [0.0, p, 0.0], [0.0, 0.0, p]])
         # D gain
-        K_d = np.array([[0.1, 0, 0], [0, 0.1, 0], [0, 0, 0.1]])
+        K_d = np.array([[d, 0, 0], [0, d, 0], [0, 0, d]])
         #K_d = np.zeros(shape=(3,3))
         # estimate time step
         cur_time = np.array([rospy.get_time()])
@@ -179,36 +180,35 @@ class KinematicsCalculator:
 
         q = np.array([robot.link1.angle, robot.link2.angle, robot.link3.angle, robot.link4.angle]) # by removing link 1 we fixed it
         #q = q[1:]
-        q = np.delete(q, 3)
-        jacobian = np.delete(robot.calc_jacobian(),3, 1)# delete first column as this accounts for joint 1
+        q = np.delete(q, 0)
+        jacobian = np.delete(robot.calc_jacobian(),0, 1)# delete first column as this accounts for joint 1
         #jacobian = self.calc_jacobian()
+        J_inv = jacobian.T @ np.linalg.inv(jacobian@jacobian.T + (4*np.eye(len(jacobian))))
 
-
-        J_inv = np.linalg.pinv(jacobian)  # calculating the pseudo inverse of Jacobian
-        dq_d = J_inv.dot(K_d.dot(self.error_d.transpose()) + K_p.dot(self.error.transpose()))  # control input (angular velocity of joints)
-        q_d = q + (dt * dq_d)  # control input (angular position of joints)
-
+        #J_inv = np.linalg.pinv(jacobian)  # calculating the pseudo inverse of Jacobian
+        #print(K_d.shape)
+        err = (K_d@(self.error_d.reshape(3,1)) + K_p@(self.error.reshape(3,1)))
+        dq_d = J_inv@(K_d@(self.error_d.reshape(3,1)) + K_p@(self.error.reshape(3,1)))  # control input (angular velocity of joints)
+        q_d = q + (dt * dq_d.flatten())  # control input (angular position of joints)
+        print(dq_d)
+        print(q_d)
 
         for i, num in enumerate(q_d):
-            while q_d[i] > np.pi:
-                q_d[i] -= 2 * np.pi
-            while q_d[i] < -np.pi:
-                q_d[i] += 2 * np.pi
-        #q_d[0] = min(q_d[0], np.pi / 2)
-        #q_d[0] = max(q_d[0], -np.pi / 2)
-        q_d[1] = min(q_d[1], np.pi/2)
-        q_d[1] = max(q_d[1],-np.pi/2)
-        q_d[2] = min(q_d[2], np.pi / 2)
-        q_d[2] = max(q_d[2], -np.pi / 2)
+            #while q_d[i] > np.pi:
+            #    q_d[i] -= 2 * np.pi
+            #while q_d[i] < -np.pi:
+            #    q_d[i] += 2 * np.pi
+            q_d[i] = min(q_d[i], np.pi / 2)
+            q_d[i] = max(q_d[i], -np.pi / 2)
 
 
         if not np.any(np.isnan(q_d)):
             print(q_d)
             print("Desired position", pos_d)
             print("Current position", pos)
-            self.robot_joint1_pub.publish(q_d[0])
-            self.robot_joint2_pub.publish(q_d[1])
-            self.robot_joint3_pub.publish(q_d[2])
+            self.robot_joint2_pub.publish(q_d[0])
+            self.robot_joint3_pub.publish(q_d[1])
+            self.robot_joint4_pub.publish(q_d[2])
             #self.robot_joint4_pub.publish(q_d[2])
         return q_d
 
