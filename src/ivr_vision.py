@@ -9,7 +9,7 @@ class ivr_vision:
         cv2.IMREAD_GRAYSCALE
     )
     _direction_correction = np.array([1.0, -1.0])  # Y-coordinates are flipped in cam feeds
-    DEBUG = True
+    DEBUG = False
     YELLOW_RANGE = [(0, 100, 100), (0, 255, 255)]
     BLUE_RANGE = [(100, 0, 0), (255, 0, 0)]
     GREEN_RANGE = [(0, 100, 0), (0, 255, 0)]
@@ -84,8 +84,8 @@ class ivr_vision:
         p2m    = ivr_vision._pixel2meter(yellow, blue, 2.5)
         center = p2m * yellow
         if ivr_vision.DEBUG:
-            r = 5
             # draw dots in the centers to check that this works
+            r = 5
             cv2.circle(image, tuple(yellow), r, ivr_vision.invert(ivr_vision.YELLOW_RANGE[1]), -1)
             cv2.circle(image, tuple(blue), r, ivr_vision.invert(ivr_vision.BLUE_RANGE[1]), -1)
             cv2.circle(image, tuple(green), r, ivr_vision.invert(ivr_vision.GREEN_RANGE[1]), -1)
