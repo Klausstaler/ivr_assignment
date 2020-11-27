@@ -23,7 +23,6 @@ class image_converter:
     self._cam2_joint_locations_2d = np.repeat(None, 2 * 4).reshape(4, -1)
     self._joint_locations_2d = np.repeat(None, 2 * 4).reshape(4, -1)
     self._prev_angles = None
-    self.gt_angles = np.array([0.0, 0.0, 0.0, 0.0])
     # comms
     self.image_sub1 = rospy.Subscriber("/camera1/robot/image_raw",Image,self.callback1)
     self.joint1_controller = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=3)
@@ -31,7 +30,6 @@ class image_converter:
     self.joint3_controller = rospy.Publisher("/robot/joint3_position_controller/command", Float64, queue_size=3)
     self.joint4_controller = rospy.Publisher("/robot/joint4_position_controller/command", Float64, queue_size=3)
     self.joint_angles_pub = rospy.Publisher("/robot/all_joints_estimate", Float64MultiArray, queue_size=3)
-    self.gt_angle_sub = rospy.Subscriber("/robot/joint_states", JointState, self.gt_angle_cb)
     self.cam2_joint1_location_2d_sub = rospy.Subscriber("/camera2/joint1_location_2d",Float64MultiArray,self.joint_locations_callback1)
     self.cam2_joint2_location_2d_sub = rospy.Subscriber("/camera2/joint2_location_2d",Float64MultiArray,self.joint_locations_callback2)
     self.cam2_joint3_location_2d_sub = rospy.Subscriber("/camera2/joint3_location_2d",Float64MultiArray,self.joint_locations_callback3)
@@ -56,26 +54,14 @@ class image_converter:
   def _joint_locations_callback(self, data):
     if self._joint_locations_2d is None or None in self._cam2_joint_locations_2d:
         return
-    joint_locations_3d = ivr_vision.combine_joint_locations(
-      self._joint_locations_2d,
-      self._cam2_joint_locations_2d
-    )
-    self._joint_angles = ivr_vision.compute_joint_angles(joint_locations_3d)
-    robot.link1.angle, robot.link2.angle, robot.link3.angle, robot.link4. angle = self.gt_angles
-    gt_pos = robot.update_effector_estimate()
-    end_effector = Float64MultiArray()
-    end_effector.data = joint_locations_3d[3, :]
-    self.end_effector_pub.publish(end_effector)
-    #print(gt_pos, self.gt_angles[1:])
-    #self._joint_angles = self.link1_estimator.links_cb(self._joint_angles, joint_locations_3d[3, :])
-    #print("GT location", gt_pos)
-    #self._joint_angles = self.link1_estimator.links_cb(self.gt_angles[1:], gt_pos)
-    message = Float64MultiArray()
-    message.data = self._joint_angles
-    self.joint_angles_pub.publish(message)
+    Js = ivr_vision.combine_joint_locations(self._joint_locations_2d, self._cam2_joint_locations_2d)
+
+    self._joint_angles = ivr_vision.fit_theta1(Js)
+
+    self.joint_angles_pub.publish(Float64MultiArray(data=self._joint_angles))
     if ivr_vision.DEBUG and \
       (self._prev_angles is None or np.linalg.norm(self._prev_angles - self._joint_angles) > 0.2):
-      #print(f'angles: {self._joint_angles}')
+      print(f'angles: {self._joint_angles}')
       self._prev_angles = self._joint_angles
 
   def callback1(self,data):
