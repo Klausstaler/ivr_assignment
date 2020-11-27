@@ -8,9 +8,9 @@
 
 The accuracy using forward kinematics is way better than the one using vision. This is because forward kinematics uses the exact joint angles, and by construction, calculates the correct end effector position given the correct joint angles. Our vision part in contrast estimates the angles based on 3D location, which is constructed by using projects onto the yz and xz plane. As our robot end effector moves further from those planes, our vision estimates get less accurate.
 \begin{center}
-\begin {tabular}{|c|c|c|}
+\begin{tabular}{|c|c|c|}
 \hline
-(\theta_1 , \theta_2 , \theta_3, \theta_4) & Camera (x,y,z) & Forward Kinematics (x, y, z) } \\\hline
+$(\theta_1 , \theta_2 , \theta_3, \theta_4)$ & Camera (x,y,z) & Forward Kinematics (x, y, z) \\\hline
  (0.3, 0.3, 0.3, 0.3) & (3.25, -2.66, 9.03) & (2.58, -1.97, 8.05) \\ \hline
  (-0.6, -0.6, 0.6, 0.6) & (4.26, -1.22, 8.92) & (3.57, -0.76, 7.53) \\ \hline
  (1.0, -0.6, 0.6, -1.0) & (-2.05, 5.29, 4.88) & (-2.2, 4.85, 4.56) \\ \hline
