@@ -53,8 +53,8 @@ class image_converter:
     ])
     errors = []
     predictions = []
-    prev_estimate = 0.0
-    for theta1_truth in np.linspace(-np.pi/2, np.pi/2, num=20):
+    prev_estimate = -np.pi
+    for theta1_truth in np.linspace(-np.pi, np.pi, num=30):
         angles = np.array([theta1_truth, np.pi / 6, -np.pi / 6, -np.pi / 4])
         # angles = np.array([theta1_truth, 0, 0, 1.3])
         _mat_1 = ivr_vision._transform(theta=np.pi/2, a=0.0, d=2.5, alpha=np.pi/2 , angle=angles[0])
@@ -73,10 +73,12 @@ class image_converter:
         prev_estimate = estimated_angles[0]
     predictions = np.array(predictions)
     errors = np.array(errors)
-    plt.scatter(predictions[:,0], predictions[:,1], c='gray', marker='.')
+    plt.plot(predictions[:,0], predictions[:,1], c='gray')
     plt.xlabel(r'$\theta_1$')
+    plt.xticks([-np.pi, np.pi], [r'$-\pi$', r'$\pi$'])
     plt.ylabel(r'$\hat{\theta_1}$')
-    plt.title(r'Scatterplot of $\theta_1$ and $\hat{\theta_1}$')
+    plt.yticks([-np.pi, np.pi], [r'$-\pi$', r'$\pi$'])
+    plt.title(r'$\hat{\theta_1}$ as a function of $\theta_1$')
     plt.show()
 
   def joint_locations_callback1(self, data):

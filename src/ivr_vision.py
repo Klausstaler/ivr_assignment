@@ -50,7 +50,7 @@ class ivr_vision:
     def fit_theta1(joints_3d, prev_theta1_estimate):
         best_angles = None
         best_error = float('inf')
-        theta1_guesses = np.linspace(-np.pi, np.pi, 200)
+        theta1_guesses = np.linspace(-np.pi, np.pi, 100)
         for theta1_guess in theta1_guesses:
             estimated_angles = ivr_vision._compute_joint_angles(joints_3d, theta1_guess)
             fk_joint_locs = ivr_vision._get_joint_locs_fk(estimated_angles)

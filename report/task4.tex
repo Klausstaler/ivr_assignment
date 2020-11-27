@@ -24,10 +24,29 @@ our angles to the estimated 3D coordinates:
 
 \end{enumerate}
 
-\subsection{Comparing estimations with sinusoidal signals}
+\subsection{Comparing estimations with sinusoidal signals} \label{4_1_sinus_plots}
 \begin{tabular}{c c}
     \includegraphics[width=0.5\linewidth]{plots/joint1_q4.png} &
     \includegraphics[width=0.5\linewidth]{plots/joint2_q4.png} \\
     \includegraphics[width=0.5\linewidth]{plots/joint3_q4.png} &
     \includegraphics[width=0.5\linewidth]{plots/joint4_q4.png}
 \end{tabular}
+
+\subsubsection{Comparing joint1 estimates with ground truth}
+Unfortunately, our 3D joint location estimates are not accurate enough
+to estimate $\theta_1$ accurately.\\
+In order to show that our approach does work given correct 3D estimates,
+we decided to compare our estimate to ground truth:\\
+Let robot state be $\text{R} = \begin{bmatrix}
+    \theta_1 \\
+    \frac{1}{6} \pi \\
+    -\frac{1}{6} \pi \\
+    -\frac{1}{4} \pi
+\end{bmatrix} $. Let $\hat{\theta_1}$ be our estimate of $\theta_1$:
+\begin{center}
+    \includegraphics[width=0.4\linewidth]{plots/theta1_estimation.png}
+\end{center}
+Our algorithm is able to accurately estimate the value of $\theta_1$,
+as long as we supply accurate 3D locations for each of the joints.
+Therefore, we believe the inaccuracies in the plots in section~\ref{4_1_sinus_plots}
+are caused by the inaccuracy stemming from our vision algorithm.
