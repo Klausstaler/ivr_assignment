@@ -10,3 +10,5 @@ Then, in another one:
 
 Finally, to initialize the angle publisher:  
    > rosrun ivr_assignment task_4_1.py 
+  
+The estimated angles should now be published to /robot/all_joints_estimate .
