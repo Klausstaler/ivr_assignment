@@ -10,11 +10,11 @@ class ivr_vision:
         cv2.IMREAD_GRAYSCALE
     )
     _direction_correction = np.array([1.0, -1.0])  # Y-coordinates are flipped in cam feeds
-    DEBUG = False
-    YELLOW_RANGE = [(0, 100, 100), (0, 255, 255)]
-    BLUE_RANGE = [(100, 0, 0), (255, 0, 0)]
-    GREEN_RANGE = [(0, 100, 0), (0, 255, 0)]
-    RED_RANGE = [(0, 0, 100), (0, 0, 255)]
+    DEBUG = True
+    YELLOW_RANGE = [(20, 100, 100), (30, 255, 255)]
+    BLUE_RANGE = [(100, 150, 0), (140, 255, 255)]
+    GREEN_RANGE = [(36, 25, 25), (70, 255, 255)]
+    RED_RANGE = [(0, 70, 50), (10, 255, 255)]
     ORANGE_RANGE = [(10, 0, 0), (20, 255, 255)]  # NB: in HSV
 
     @staticmethod
@@ -169,10 +169,12 @@ class ivr_vision:
         return real_dist / pixel_dist
 
     @staticmethod
-    def detect_blob(image, rgb_range):
+    def detect_blob(image, hsv_range):
         kernel = np.ones((ivr_vision._blob_kernel_size, ivr_vision._blob_kernel_size), np.uint8)
+        img_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        inRange = cv2.inRange(img_hsv, hsv_range[0], hsv_range[1])
         mask = cv2.dilate(
-            cv2.inRange(image, rgb_range[0], rgb_range[1]),
+            inRange,
             kernel,
             iterations=3
         )
