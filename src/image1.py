@@ -88,6 +88,7 @@ class image_converter:
   def gt_angle_cb(self, data):
     data = data.position
     self.gt_angles = np.array([angle for angle in data])
+
   # receive 2D joint locations from camera2, combine them into 3D
   def _joint_locations_callback(self, data):
     if self._joint_locations_2d is None or None in self._cam2_joint_locations_2d:

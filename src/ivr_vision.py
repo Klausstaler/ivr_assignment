@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import os
+from scipy.spatial.transform import Rotation
 
 class ivr_vision:
     _blob_kernel_size = 5
@@ -9,12 +10,24 @@ class ivr_vision:
         cv2.IMREAD_GRAYSCALE
     )
     _direction_correction = np.array([1.0, -1.0])  # Y-coordinates are flipped in cam feeds
-    DEBUG = False
+    DEBUG = True
     YELLOW_RANGE = [(0, 100, 100), (0, 255, 255)]
     BLUE_RANGE = [(100, 0, 0), (255, 0, 0)]
     GREEN_RANGE = [(0, 100, 0), (0, 255, 0)]
     RED_RANGE = [(0, 0, 100), (0, 0, 255)]
     ORANGE_RANGE = [(10, 0, 0), (20, 255, 255)]  # NB: in HSV
+
+    @staticmethod
+    def _transform(a, d, alpha, theta, angle):
+        x_rot = np.eye(4)
+        x_trans = np.eye(4)
+        z_trans = np.eye(4)
+        z_rot = np.eye(4)
+        x_rot[:-1, :-1] = Rotation.from_euler("xyz", [alpha, 0, 0]).as_matrix()
+        x_trans[0, -1] = a
+        z_rot[:-1, :-1] = Rotation.from_euler("xyz", [0, 0, theta + angle]).as_matrix()
+        z_trans[-2, -1] = d
+        return z_rot @ z_trans @ x_trans @ x_rot
 
     @staticmethod
     def debug_pose(joints):
@@ -32,6 +45,53 @@ class ivr_vision:
             f'B_Y({angles[1]:.2f}), ' +
             f'G_X({angles[2]:.2f})' +
         ']')
+
+    @staticmethod
+    def fit_theta1(joints_3d):
+        theta1 = 0.0
+        best_error = float('inf')
+        theta1_guesses = np.linspace(-np.pi / 2.0, np.pi / 2.0, 50)
+        for theta1_guess in theta1_guesses:
+            estimated_angles = ivr_vision._compute_joint_angles(joints_3d, theta1_guess)
+            fk_joint_locs = ivr_vision._get_joint_locs_fk(estimated_angles)
+            error = ivr_vision._theta1_estimate_error(truth=joints_3d, guess=fk_joint_locs)
+            if error < best_error:
+                best_error = error
+                theta1 = theta1_guess
+            if ivr_vision.DEBUG:
+                print(f'fitting locations with theta1={theta1_guess:.2f} gives error={error:.3f}')
+        return theta1, best_error
+
+    @staticmethod
+    def _theta1_estimate_error(truth, guess):
+        return np.linalg.norm(truth - guess)
+
+    # undo z-rotation and estimate angles
+    @staticmethod
+    def _compute_joint_angles(joint_locs, theta1_guess):
+        # undo theta1
+        _joint_locs = joint_locs.copy()
+        for i, J in enumerate(_joint_locs):
+            _joint_locs[i] = ivr_vision._rotate_around_z_axis(-theta1_guess, J)
+        _angles = ivr_vision.compute_joint_angles(_joint_locs)
+        if ivr_vision.DEBUG:
+            ivr_vision.debug_angles(_angles)
+        return np.insert(_angles, 0, [theta1_guess])
+
+    def _get_joint_locs_fk(angles):
+        # simplified forward kinematics for task 4.1
+        _mat_1 = ivr_vision._transform(theta=np.pi/2, a=0.0, d=2.5, alpha=np.pi/2 , angle=angles[0])
+        _mat_2 = ivr_vision._transform(theta=np.pi/2, a=0.0, d=0.0, alpha=np.pi/2 , angle=angles[1])
+        _mat_3 = ivr_vision._transform(theta=0.0    , a=3.5, d=0.0, alpha=-np.pi/2, angle=angles[2])
+        _mat_4 = ivr_vision._transform(theta=0.0    , a=3.0, d=0.0, alpha=0.0     , angle=angles[3])
+        # compute locations given angles
+        J0 = np.array([0.0, 0.0, 0.0])
+        J1 = (_mat_1)[:-1, -1]
+        J2 = (_mat_1 @ _mat_2 @ _mat_3)[:-1, -1]
+        J3 = (_mat_1 @ _mat_2 @ _mat_3 @ _mat_4)[:-1, -1]
+        # if ivr_vision.DEBUG:
+        #     ivr_vision.debug_pose(np.array([J0, J1, J2, J3]))
+        return np.array([J0, J1, J2, J3])
 
     @staticmethod
     def compute_joint_angles(joint_locs):
@@ -167,9 +227,18 @@ class ivr_vision:
     @staticmethod
     def _rotate_around_x_axis(angle, v):
         M = np.array([
-            [1.0, 0.0          , 0.0                 ],
-            [0.0, np.cos(angle), -1.0 * np.cos(angle)],
-            [0.0, np.sin(angle),        np.cos(angle)]
+            [1.0, 0.0          ,  0.0          ],
+            [0.0, np.cos(angle), -np.cos(angle)],
+            [0.0, np.sin(angle),  np.cos(angle)]
+        ])
+        return np.dot(M, v)
+
+    @staticmethod
+    def _rotate_around_z_axis(angle, v):
+        M = np.array([
+            [np.cos(angle), -np.sin(angle), 0.0],
+            [np.sin(angle),  np.cos(angle), 0.0],
+            [0.0          ,  0.0          , 1.0]
         ])
         return np.dot(M, v)
 
