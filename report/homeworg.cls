@@ -73,7 +73,6 @@
 \newcommand*{\exercise}{\@ifstar{%
     \@exercise%
 }{%
-    \ifnum\thesection>0\newpage\fi%
     \@exercise%
 }}
 \newcommand*{\@exercise}[1][-1]{%

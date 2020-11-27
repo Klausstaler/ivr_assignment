@@ -1,6 +1,6 @@
-\exercise[Robot Vision]
+\section{Robot Vision}
+\subsection{Description of joint estimation algorithm} \label{joint_algo}
 
-\subsection{Description of joint estimation algorithm}
 The first step is to locate the joints in each of the camera feeds using
 simple blob detection:
 \begin{enumerate}
@@ -43,11 +43,11 @@ Using the 3D estimates, we can compute the angles for each of the joints:
 \end{itemize}
 
 \subsection{Comparing estimations with sinusoidal signals}
-\begin{center}
-    \includegraphics[width=0.7\textwidth]{plots/q2_1_j2_10sec.png}
-    \includegraphics[width=0.7\textwidth]{plots/q2_1_j3_10sec.png}
-    \includegraphics[width=0.7\textwidth]{plots/q2_1_j4_10sec.png}
-\end{center}
+\begin{tabular}{c c}
+    \includegraphics[width=0.5\textwidth]{plots/q2_1_j2_10sec.png} &
+    \includegraphics[width=0.5\textwidth]{plots/q2_1_j3_10sec.png} \\
+    \includegraphics[width=0.5\textwidth]{plots/q2_1_j4_10sec.png} &
+\end{tabular}
 
 \subsection{Description of target detection algorithm}
 First, we detect the target in both of the camera feeds using 
