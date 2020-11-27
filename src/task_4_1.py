@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 
 class image_converter:
   def __init__(self):
-    self.test()
+    # self.test()
     rospy.init_node('image_processing', anonymous=True)
     self.image_pub1 = rospy.Publisher("image_topic1",Image, queue_size = 1)
     self.bridge = CvBridge()
@@ -74,7 +74,6 @@ class image_converter:
     plt.scatter(errors[:,0], errors[:,1], c='r')
     plt.show()
 
-
   def joint_locations_callback1(self, data):
     self._cam2_joint_locations_2d[0] = np.array(data.data)
     self._joint_locations_callback(data)
@@ -96,11 +95,10 @@ class image_converter:
         return
     Js = ivr_vision.combine_joint_locations(self._joint_locations_2d, self._cam2_joint_locations_2d)
 
-    self._joint_angles = ivr_vision.fit_theta1(Js)
+    self._joint_angles, error = ivr_vision.fit_theta1(Js)
 
     self.joint_angles_pub.publish(Float64MultiArray(data=self._joint_angles))
-    if ivr_vision.DEBUG and \
-      (self._prev_angles is None or np.linalg.norm(self._prev_angles - self._joint_angles) > 0.2):
+    if (self._prev_angles is None or np.linalg.norm(self._prev_angles - self._joint_angles) > 0.2):
       print(f'angles: {self._joint_angles}')
       self._prev_angles = self._joint_angles
 
@@ -118,9 +116,14 @@ class image_converter:
       print(e)
 
     time = rospy.get_time()
-    #self._update_joint2(time)
-    #self._update_joint3(time)
-    #self._update_joint4(time)
+    self._update_joint1(time)
+    self._update_joint2(time)
+    self._update_joint3(time)
+    self._update_joint4(time)
+
+  def _update_joint1(self, t):
+      new_state = np.pi * np.sin(np.pi / 15.0 * t)
+      self.joint1_controller.publish(new_state)
 
   def _update_joint2(self, t):
       new_state = np.pi / 2.0 * np.sin(np.pi / 15.0 * t)
