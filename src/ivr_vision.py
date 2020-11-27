@@ -151,7 +151,7 @@ class ivr_vision:
                 cv2.circle(image, tuple(blue), r, ivr_vision.invert(ivr_vision.BLUE_RANGE[1]), -1)
                 cv2.circle(image, tuple(green), r, ivr_vision.invert(ivr_vision.GREEN_RANGE[1]), -1)
                 cv2.circle(image, tuple(red), r, ivr_vision.invert(ivr_vision.RED_RANGE[1]), -1)
-            except e:
+            except Exception as e:
                 print("could not display debug circles")
         # update any new locations we found
         if yellow is not None:
