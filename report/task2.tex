@@ -84,7 +84,9 @@ Then, we combine both camera feeds to produce the 3D coordinates:
             \end{bmatrix} 
         \]
 \end{enumerate}
-
+When the sphere is hidden behind the robot, we simply do not update the postion, which can cause a slight measurement error. Furthermore, as our vision
+algorithm is faulty and we use that to estimate the position, the error
+propagates to our target detection.
 \subsection{Target detection plot}
 \begin{center}
     \includegraphics[width=0.8\textwidth]{plots/q2_2.png}
