@@ -1,1 +1,33 @@
 \exercise[Joint State Estimation (4.1)]
+
+\subsection{Description of the algorithm}
+We use the algorithm described under \ref{joints_algo} to estimate the
+3D coordinates of each of the joints.
+We use our \texttt{fit\_theta1} method to optimise the error of fitting
+our angles to the estimated 3D coordinates:
+\begin{enumerate}
+    \item
+        For various "guesses" in the range of $[-\pi, \pi]$, let
+        $\hat{\theta_1}$ be a guess for the first joint.
+    \item
+        "Undo" this guess by rotating around the Z-axis by $-\hat{\theta_1}$
+    \item
+        Estimate the angles for $\theta_2, \theta_3, \theta_4$ using our
+        previously described approach.
+    \item
+        Compute the positions of the \textbf{green} and \textbf{red}
+        joint using forward kinematics, and \textbf{compute the error}
+        between our 3D estimates and these locations.
+    \item
+        We let our estimate for $\theta_1$ be the angle which minimises
+        the error described above.
+
+\end{enumerate}
+
+\subsection{Comparing estimations with sinusoidal signals}
+\begin{tabular}{c c}
+    \includegraphics[width=0.5\linewidth]{plots/joint1_q4.png} &
+    \includegraphics[width=0.5\linewidth]{plots/joint2_q4.png} \\
+    \includegraphics[width=0.5\linewidth]{plots/joint3_q4.png} &
+    \includegraphics[width=0.5\linewidth]{plots/joint4_q4.png}
+\end{tabular}

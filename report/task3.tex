@@ -7,8 +7,7 @@
 \begin{figure}[ht]
 \includegraphics[]{x_y_z.png}
 \caption{Forward kinematics equation given the angles}
-\end{figure}\\
-
+\end{figure}
 The accuracy using forward kinematics is way better than the one using vision. This is because forward kinematics uses the exact joint angles, and by construction, calculates the correct end effector position given the correct joint angles. Our vision part in contrast estimates the angles based on 3D location, which is constructed by using projects onto the yz and xz plane. As our robot end effector moves further from those planes, our vision estimates get less accurate.
 \begin{center}
 \begin{tabular}{|c|c|c|c|c|c|}
