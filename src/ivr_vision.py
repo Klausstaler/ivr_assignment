@@ -11,10 +11,10 @@ class ivr_vision:
     )
     _direction_correction = np.array([1.0, -1.0])  # Y-coordinates are flipped in cam feeds
     DEBUG = True
-    YELLOW_RANGE = [(0, 100, 100), (0, 255, 255)]
-    BLUE_RANGE = [(100, 0, 0), (255, 0, 0)]
-    GREEN_RANGE = [(0, 100, 0), (0, 255, 0)]
-    RED_RANGE = [(0, 0, 100), (0, 0, 255)]
+    YELLOW_RANGE = [(20, 100, 100), (30, 255, 255)]
+    BLUE_RANGE = [(100, 150, 0), (140, 255, 255)]
+    GREEN_RANGE = [(36, 25, 25), (70, 255, 255)]
+    RED_RANGE = [(0, 70, 50), (10, 255, 255)]
     ORANGE_RANGE = [(10, 0, 0), (20, 255, 255)]  # NB: in HSV
 
     @staticmethod
@@ -48,19 +48,19 @@ class ivr_vision:
 
     @staticmethod
     def fit_theta1(joints_3d):
-        theta1 = 0.0
+        best_angles = None
         best_error = float('inf')
-        theta1_guesses = np.linspace(-np.pi / 2.0, np.pi / 2.0, 50)
+        theta1_guesses = np.linspace(-np.pi, np.pi, 30)
         for theta1_guess in theta1_guesses:
             estimated_angles = ivr_vision._compute_joint_angles(joints_3d, theta1_guess)
             fk_joint_locs = ivr_vision._get_joint_locs_fk(estimated_angles)
             error = ivr_vision._theta1_estimate_error(truth=joints_3d, guess=fk_joint_locs)
             if error < best_error:
                 best_error = error
-                theta1 = theta1_guess
-            if ivr_vision.DEBUG:
-                print(f'fitting locations with theta1={theta1_guess:.2f} gives error={error:.3f}')
-        return theta1, best_error
+                best_angles = estimated_angles
+            # if ivr_vision.DEBUG:
+            #     print(f'fitting locations with theta1={theta1_guess:.2f} gives error={error:.3f}')
+        return best_angles, best_error
 
     @staticmethod
     def _theta1_estimate_error(truth, guess):
@@ -74,8 +74,8 @@ class ivr_vision:
         for i, J in enumerate(_joint_locs):
             _joint_locs[i] = ivr_vision._rotate_around_z_axis(-theta1_guess, J)
         _angles = ivr_vision.compute_joint_angles(_joint_locs)
-        if ivr_vision.DEBUG:
-            ivr_vision.debug_angles(_angles)
+        # if ivr_vision.DEBUG:
+        #     ivr_vision.debug_angles(_angles)
         return np.insert(_angles, 0, [theta1_guess])
 
     def _get_joint_locs_fk(angles):
@@ -169,10 +169,12 @@ class ivr_vision:
         return real_dist / pixel_dist
 
     @staticmethod
-    def detect_blob(image, rgb_range):
+    def detect_blob(image, hsv_range):
         kernel = np.ones((ivr_vision._blob_kernel_size, ivr_vision._blob_kernel_size), np.uint8)
+        img_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        inRange = cv2.inRange(img_hsv, hsv_range[0], hsv_range[1])
         mask = cv2.dilate(
-            cv2.inRange(image, rgb_range[0], rgb_range[1]),
+            inRange,
             kernel,
             iterations=3
         )
