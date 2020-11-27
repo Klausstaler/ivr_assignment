@@ -32,6 +32,8 @@
     \DeclareMathSymbol{\nexists}{\mathord}{stix2-operators}{"C8} % TODO: not working? (amsmath?)
 \fi
 
+\DeclareMathOperator{\atantwo}{atan2}
+
 \RequirePackage[T1]{fontenc}
 \RequirePackage[utf8]{inputenc}
 
