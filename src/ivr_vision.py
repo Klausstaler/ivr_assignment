@@ -47,10 +47,10 @@ class ivr_vision:
         ']')
 
     @staticmethod
-    def fit_theta1(joints_3d):
+    def fit_theta1(joints_3d, prev_theta1_estimate):
         best_angles = None
         best_error = float('inf')
-        theta1_guesses = np.linspace(-np.pi, np.pi, 30)
+        theta1_guesses = np.linspace(-np.pi, np.pi, 200)
         for theta1_guess in theta1_guesses:
             estimated_angles = ivr_vision._compute_joint_angles(joints_3d, theta1_guess)
             fk_joint_locs = ivr_vision._get_joint_locs_fk(estimated_angles)
@@ -60,7 +60,22 @@ class ivr_vision:
                 best_angles = estimated_angles
             # if ivr_vision.DEBUG:
             #     print(f'fitting locations with theta1={theta1_guess:.2f} gives error={error:.3f}')
-        return best_angles, best_error
+        # find the best estimate close to previous one out of {theta1 - pi, theta1, theta1 + pi}
+        _temp_angle = best_angles[0]
+        options = [_temp_angle - np.pi, _temp_angle, _temp_angle + np.pi]
+        options = [angle for angle in options if angle > -np.pi or angle <= np.pi]
+        # check which is closest
+        theta1_estimate = options[0]
+        best_diff = float('inf')
+        for option in options:
+            diff = np.abs(option - prev_theta1_estimate)
+            if diff < best_diff:
+                best_diff = diff
+                theta1_estimate = option
+        # compute j2, j3, j4
+        best_angles = ivr_vision._compute_joint_angles(joints_3d, theta1_estimate)
+        fk_joint_locs = ivr_vision._get_joint_locs_fk(estimated_angles)
+        return best_angles, ivr_vision._theta1_estimate_error(truth=joints_3d, guess=fk_joint_locs)
 
     @staticmethod
     def _theta1_estimate_error(truth, guess):

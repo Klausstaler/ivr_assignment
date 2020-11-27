@@ -25,6 +25,7 @@ class image_converter:
     self._cam2_joint_locations_2d = np.repeat(None, 2 * 4).reshape(4, -1)
     self._joint_locations_2d = np.repeat(None, 2 * 4).reshape(4, -1)
     self._prev_angles = None
+    self._joint_angles = np.array([0.0, 0.0, 0.0, 0.0])
     # comms
     self.image_sub1 = rospy.Subscriber("/camera1/robot/image_raw",Image,self.callback1)
     self.joint1_controller = rospy.Publisher("/robot/joint1_position_controller/command", Float64, queue_size=3)
@@ -52,7 +53,8 @@ class image_converter:
     ])
     errors = []
     predictions = []
-    for theta1_truth in np.linspace(-np.pi/2, np.pi/2, num=25):
+    prev_estimate = 0.0
+    for theta1_truth in np.linspace(-np.pi/2, np.pi/2, num=20):
         angles = np.array([theta1_truth, np.pi / 6, -np.pi / 6, -np.pi / 4])
         # angles = np.array([theta1_truth, 0, 0, 1.3])
         _mat_1 = ivr_vision._transform(theta=np.pi/2, a=0.0, d=2.5, alpha=np.pi/2 , angle=angles[0])
@@ -65,13 +67,16 @@ class image_converter:
             (_mat_1 @ _mat_2 @ _mat_3)[:-1, -1],
             (_mat_1 @ _mat_2 @ _mat_3 @ _mat_4)[:-1, -1]
         ])
-        estimated_angles, error = ivr_vision.fit_theta1(fk_joint_locs)
+        estimated_angles, error = ivr_vision.fit_theta1(fk_joint_locs, prev_estimate)
         predictions.append([theta1_truth, estimated_angles[0]])
         errors.append([theta1_truth, error])
+        prev_estimate = estimated_angles[0]
     predictions = np.array(predictions)
     errors = np.array(errors)
-    plt.scatter(predictions[:,0], predictions[:,1], c='gray')
-    plt.plot(errors[:,0], errors[:,1], c='r')
+    plt.scatter(predictions[:,0], predictions[:,1], c='gray', marker='.')
+    plt.xlabel(r'$\theta_1$')
+    plt.ylabel(r'$\hat{\theta_1}$')
+    plt.title(r'Scatterplot of $\theta_1$ and $\hat{\theta_1}$')
     plt.show()
 
   def joint_locations_callback1(self, data):
@@ -95,7 +100,7 @@ class image_converter:
         return
     Js = ivr_vision.combine_joint_locations(self._joint_locations_2d, self._cam2_joint_locations_2d)
 
-    self._joint_angles, error = ivr_vision.fit_theta1(Js)
+    self._joint_angles, error = ivr_vision.fit_theta1(Js, self._joint_angles[0])
 
     self.joint_angles_pub.publish(Float64MultiArray(data=self._joint_angles))
     if (self._prev_angles is None or np.linalg.norm(self._prev_angles - self._joint_angles) > 0.2):
