@@ -14,9 +14,11 @@ from Link1Estimator import Link1Estimator
 from forward_kinematics import robot
 from sensor_msgs.msg import JointState
 from copy import copy
+import matplotlib.pyplot as plt
 
 class image_converter:
   def __init__(self):
+    self.test()
     rospy.init_node('image_processing', anonymous=True)
     self.image_pub1 = rospy.Publisher("image_topic1",Image, queue_size = 1)
     self.bridge = CvBridge()
@@ -34,6 +36,44 @@ class image_converter:
     self.cam2_joint2_location_2d_sub = rospy.Subscriber("/camera2/joint2_location_2d",Float64MultiArray,self.joint_locations_callback2)
     self.cam2_joint3_location_2d_sub = rospy.Subscriber("/camera2/joint3_location_2d",Float64MultiArray,self.joint_locations_callback3)
     self.cam2_joint4_location_2d_sub = rospy.Subscriber("/camera2/joint4_location_2d",Float64MultiArray,self.joint_locations_callback4)
+
+  def test(self):
+    X = np.array([
+        [[0, 0, 0], [0, 0, 2.5], [0, 0, 6]           , [0, 0, 9]],
+        [[0, 0, 0], [0, 0, 2.5], [0, 3.5, 2.5]       , [0, 6, 2.5]],
+        [[0, 0, 0], [0, 0, 2.5], [-1.75, -1.52, 5.12], [-2.81, -0.60, 7.78]],
+        [[0, 0, 0], [0, 0, 2.5], [-2.31, .166, 5.13] , [-2.41, 1.56, 7.78]]
+    ])
+    Y = np.array([
+        [0, 0, 0, 0],
+        [0, 0, np.pi / 2, 0],
+        [0         , np.pi / 6, -np.pi / 6, -np.pi / 4],
+        [-np.pi / 4, np.pi / 6, -np.pi / 6, -np.pi / 4]
+    ])
+    errors = []
+    predictions = []
+    for theta1_truth in np.linspace(-np.pi/2, np.pi/2, num=100):
+        # angles = np.array([theta1_truth, np.pi / 6, -np.pi / 6, -np.pi / 4])
+        angles = np.array([theta1_truth, 0, 0, 1.3])
+        _mat_1 = ivr_vision._transform(theta=np.pi/2, a=0.0, d=2.5, alpha=np.pi/2 , angle=angles[0])
+        _mat_2 = ivr_vision._transform(theta=np.pi/2, a=0.0, d=0.0, alpha=np.pi/2 , angle=angles[1])
+        _mat_3 = ivr_vision._transform(theta=0.0    , a=3.5, d=0.0, alpha=-np.pi/2, angle=angles[2])
+        _mat_4 = ivr_vision._transform(theta=0.0    , a=3.0, d=0.0, alpha=0.0     , angle=angles[3])
+        fk_joint_locs = np.array([
+            [0.0, 0.0, 0.0],
+            (_mat_1)[:-1, -1],
+            (_mat_1 @ _mat_2 @ _mat_3)[:-1, -1],
+            (_mat_1 @ _mat_2 @ _mat_3 @ _mat_4)[:-1, -1]
+        ])
+        theta1, error = ivr_vision.fit_theta1(fk_joint_locs)
+        predictions.append([theta1_truth, theta1])
+        errors.append([theta1_truth, error])
+    predictions = np.array(predictions)
+    errors = np.array(errors)
+    plt.scatter(predictions[:,0], predictions[:,1])
+    plt.scatter(errors[:,0], errors[:,1], c='r')
+    plt.show()
+
 
   def joint_locations_callback1(self, data):
     self._cam2_joint_locations_2d[0] = np.array(data.data)

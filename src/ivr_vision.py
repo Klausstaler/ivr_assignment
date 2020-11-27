@@ -30,12 +30,6 @@ class ivr_vision:
         return z_rot @ z_trans @ x_trans @ x_rot
 
     @staticmethod
-    def _get_J3():
-        return (
-            ivr_vision._MAT_1 @ ivr_vision._MAT_2 @ ivr_vision._MAT_3 @ ivr_vision._MAT_4
-        )[:-1, -1]
-
-    @staticmethod
     def debug_pose(joints):
         print('[' +
             f'Y({joints[0][0]:.2f}, {joints[0][1]:.2f}, {joints[0][2]:.2f}), ' +
@@ -54,13 +48,19 @@ class ivr_vision:
 
     @staticmethod
     def fit_theta1(joints_3d):
-        theta1_guesses = np.linspace(0, 0, 1)
+        theta1 = 0.0
+        best_error = float('inf')
+        theta1_guesses = np.linspace(-np.pi / 2.0, np.pi / 2.0, 50)
         for theta1_guess in theta1_guesses:
             estimated_angles = ivr_vision._compute_joint_angles(joints_3d, theta1_guess)
             fk_joint_locs = ivr_vision._get_joint_locs_fk(estimated_angles)
             error = ivr_vision._theta1_estimate_error(truth=joints_3d, guess=fk_joint_locs)
+            if error < best_error:
+                best_error = error
+                theta1 = theta1_guess
             if ivr_vision.DEBUG:
                 print(f'fitting locations with theta1={theta1_guess:.2f} gives error={error:.3f}')
+        return theta1, best_error
 
     @staticmethod
     def _theta1_estimate_error(truth, guess):
@@ -74,6 +74,8 @@ class ivr_vision:
         for i, J in enumerate(_joint_locs):
             _joint_locs[i] = ivr_vision._rotate_around_z_axis(-theta1_guess, J)
         _angles = ivr_vision.compute_joint_angles(_joint_locs)
+        if ivr_vision.DEBUG:
+            ivr_vision.debug_angles(_angles)
         return np.insert(_angles, 0, [theta1_guess])
 
     def _get_joint_locs_fk(angles):
@@ -83,10 +85,12 @@ class ivr_vision:
         _mat_3 = ivr_vision._transform(theta=0.0    , a=3.5, d=0.0, alpha=-np.pi/2, angle=angles[2])
         _mat_4 = ivr_vision._transform(theta=0.0    , a=3.0, d=0.0, alpha=0.0     , angle=angles[3])
         # compute locations given angles
-        J0 = (_mat_1)[:-1, -1]
-        J1 = (_mat_1 @ _mat_2)[:-1, -1]
+        J0 = np.array([0.0, 0.0, 0.0])
+        J1 = (_mat_1)[:-1, -1]
         J2 = (_mat_1 @ _mat_2 @ _mat_3)[:-1, -1]
         J3 = (_mat_1 @ _mat_2 @ _mat_3 @ _mat_4)[:-1, -1]
+        # if ivr_vision.DEBUG:
+        #     ivr_vision.debug_pose(np.array([J0, J1, J2, J3]))
         return np.array([J0, J1, J2, J3])
 
     @staticmethod
